@@ -421,12 +421,12 @@ void ChapterHtmlSlimParser::startNewTextBlock(const BlockStyle& blockStyle) {
   // block is flushed so the chapter starts on a fresh page.
   flushPendingAnchor();
   currentTextBlock =
-      makeUniqueNoThrow<ParsedText>(extraParagraphSpacing, hyphenationEnabled, focusReadingEnabled, blockStyle);
+      makeUniqueNoThrow<ParsedText>(paragraphIndent, hyphenationEnabled, focusReadingEnabled, blockStyle);
   if (!currentTextBlock) {
     // Evict rebuildable caches and retry once before failing the build.
     freeink::MemoryManager::instance().ensureFree(4 * 1024);
     currentTextBlock =
-        makeUniqueNoThrow<ParsedText>(extraParagraphSpacing, hyphenationEnabled, focusReadingEnabled, blockStyle);
+        makeUniqueNoThrow<ParsedText>(paragraphIndent, hyphenationEnabled, focusReadingEnabled, blockStyle);
   }
   if (!currentTextBlock) {
     LOG_ERR("EHP", "OOM: ParsedText");
@@ -706,6 +706,9 @@ void ChapterHtmlSlimParser::finishTableRow() {
 
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
+  // `p + p`: only the first element opened after a sibling </p> is its adjacent sibling
+  const bool followsParagraph = self->lastClosedParagraphDepth == self->depth;
+  self->lastClosedParagraphDepth = -1;
   if (strcasecmp(name, "body") == 0) {
     // Case-insensitive to match ParagraphStreamer's tag matching (ProgressMapper). A case
     // mismatch here would leave visibleTextOffset at 0 for the whole section, so every page
@@ -901,7 +904,7 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       tableCellBlockStyle.isRtl = cssStyle.direction == CssTextDirection::Rtl;
     }
 
-    self->currentTextBlock = makeUniqueNoThrow<ParsedText>(self->extraParagraphSpacing, self->hyphenationEnabled,
+    self->currentTextBlock = makeUniqueNoThrow<ParsedText>(self->paragraphIndent, self->hyphenationEnabled,
                                                            self->focusReadingEnabled, tableCellBlockStyle);
     if (!self->currentTextBlock) {
       LOG_ERR("EHP", "OOM: table cell");
@@ -1414,7 +1417,11 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
       const auto accumulated = self->blockStyleStack.back().getCombinedBlockStyle(userAlignmentBlockStyle,
                                                                                   BlockStyle::CombineAxis::Horizontal);
       self->blockStyleStack.push_back(accumulated);
-      self->startNewTextBlock(accumulated.withoutBottom());
+      BlockStyle paragraphStyle = accumulated.withoutBottom();
+      if (self->halfParagraphSpacing && followsParagraph && strcmp(name, "p") == 0) {
+        paragraphStyle.marginTop = static_cast<int16_t>(emSize / 2 + 0.5f);
+      }
+      self->startNewTextBlock(paragraphStyle);
       if (!self->currentTextBlock) {
         // OOM: layoutOom is latched; bail before the <li> marker path below
         // dereferences the missing block. parseStep() fails the build.
@@ -1603,7 +1610,7 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
   if (!self->currentTextBlock) {
     const BlockStyle flowStyle =
         self->blockStyleStack.empty() ? BlockStyle() : self->blockStyleStack.back().withoutBottom();
-    self->currentTextBlock = makeUniqueNoThrow<ParsedText>(self->extraParagraphSpacing, self->hyphenationEnabled,
+    self->currentTextBlock = makeUniqueNoThrow<ParsedText>(self->paragraphIndent, self->hyphenationEnabled,
                                                            self->focusReadingEnabled, flowStyle);
     if (!self->currentTextBlock) {
       LOG_ERR("EHP", "OOM: text block for character data");
@@ -1917,6 +1924,10 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
   self->depth -= 1;
 
+  if (self->halfParagraphSpacing && !insideSkippedSubtree && strcmp(name, "p") == 0) {
+    self->lastClosedParagraphDepth = self->depth;
+  }
+
   // Closing a footnote link — create entry from collected text and href
   if (self->insideFootnoteLink && self->depth == self->footnoteLinkDepth) {
     if (self->currentFootnote.number[0] != '\0' && self->currentFootnote.href[0] != '\0') {
@@ -1964,7 +1975,7 @@ void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* n
 
     const BlockStyle flowStyle =
         self->blockStyleStack.empty() ? BlockStyle() : self->blockStyleStack.back().withoutBottom();
-    self->currentTextBlock = makeUniqueNoThrow<ParsedText>(self->extraParagraphSpacing, self->hyphenationEnabled,
+    self->currentTextBlock = makeUniqueNoThrow<ParsedText>(self->paragraphIndent, self->hyphenationEnabled,
                                                            self->focusReadingEnabled, flowStyle);
     if (!self->currentTextBlock) {
       LOG_ERR("EHP", "OOM: text block after table");

@@ -26,7 +26,8 @@ constexpr StrId TAB_NAME_IDS[] = {StrId::STR_FONT, StrId::STR_SIZE, StrId::STR_L
 
 constexpr StrId LAYOUT_ROW_NAME_IDS[] = {StrId::STR_LINE_SPACING,      StrId::STR_WORD_SPACING,
                                          StrId::STR_CHARACTER_SPACING, StrId::STR_EXTRA_SPACING,
-                                         StrId::STR_ALIGNMENT,         StrId::STR_SCREEN_MARGIN};
+                                         StrId::STR_FIRST_LINE_INDENT, StrId::STR_ALIGNMENT,
+                                         StrId::STR_SCREEN_MARGIN};
 constexpr StrId STYLE_ROW_NAME_IDS[] = {StrId::STR_FOCUS_READING, StrId::STR_HYPHENATION, StrId::STR_EMBEDDED_STYLE,
                                         StrId::STR_TEXT_AA};
 
@@ -44,7 +45,11 @@ int findCurrentFontIndex(const SdCardFontRegistry* registry, const char* sdFontF
   return fontFamily < CrossPointSettings::BUILTIN_FONT_COUNT ? fontFamily : 0;
 }
 
-constexpr StrId LINE_SPACING_IDS[] = {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_WIDE, StrId::STR_EXTRA_WIDE};
+constexpr StrId PARA_SPACING_IDS[] = {StrId::STR_STATE_OFF, StrId::STR_STATE_ON, StrId::STR_PARA_SPACING_HALF};
+constexpr StrId INDENT_IDS[] = {StrId::STR_INDENT_BOOK, StrId::STR_STATE_OFF, StrId::STR_INDENT_1EM,
+                                StrId::STR_INDENT_1_5EM, StrId::STR_INDENT_2EM};
+constexpr StrId LINE_SPACING_IDS[] = {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_RELAXED, StrId::STR_WIDE,
+                                      StrId::STR_EXTRA_WIDE};
 constexpr StrId WORD_SPACING_IDS[] = {StrId::STR_SPACING_50_PERCENT,  StrId::STR_SPACING_75_PERCENT,
                                       StrId::STR_SPACING_100_PERCENT, StrId::STR_SPACING_125_PERCENT,
                                       StrId::STR_SPACING_150_PERCENT, StrId::STR_SPACING_175_PERCENT,
@@ -260,9 +265,6 @@ const char* TextSettingsActivity::confirmLabelText() const {
     return I18N.get(TAB_NAME_IDS[(static_cast<int>(tab_) + 1) % static_cast<int>(Tab::Count)]);
   }
   switch (tab_) {
-    case Tab::Layout:
-      // Extra Paragraph Spacing toggles; the rest open a picker
-      return ringPos() - 1 == static_cast<int>(LayoutRow::ParaSpacing) ? tr(STR_TOGGLE) : tr(STR_SELECT);
     case Tab::Style:
       return tr(STR_TOGGLE);
     default:
@@ -381,8 +383,19 @@ void TextSettingsActivity::applySize(int listIndex) {
 void TextSettingsActivity::confirmLayoutRow(int row) {
   switch (static_cast<LayoutRow>(row)) {
     case LayoutRow::ParaSpacing:
-      SETTINGS.extraParagraphSpacing = !SETTINGS.extraParagraphSpacing;
-      SETTINGS.saveToFile();
+      optionPopup_.show(StrId::STR_EXTRA_SPACING, PARA_SPACING_IDS, static_cast<int>(std::size(PARA_SPACING_IDS)),
+                        SETTINGS.extraParagraphSpacing, [](int idx) {
+                          SETTINGS.extraParagraphSpacing = static_cast<uint8_t>(idx);
+                          SETTINGS.saveToFile();
+                        });
+      requestUpdate();
+      break;
+    case LayoutRow::Indent:
+      optionPopup_.show(StrId::STR_FIRST_LINE_INDENT, INDENT_IDS, static_cast<int>(std::size(INDENT_IDS)),
+                        SETTINGS.paragraphIndent, [](int idx) {
+                          SETTINGS.paragraphIndent = static_cast<uint8_t>(idx);
+                          SETTINGS.saveToFile();
+                        });
       requestUpdate();
       break;
     case LayoutRow::LineSpacing:
@@ -444,8 +457,14 @@ std::string TextSettingsActivity::layoutValueText(int row) const {
       const uint8_t v = SETTINGS.lineSpacing;
       return v < std::size(LINE_SPACING_IDS) ? I18N.get(LINE_SPACING_IDS[v]) : I18N.get(StrId::STR_NORMAL);
     }
-    case LayoutRow::ParaSpacing:
-      return SETTINGS.extraParagraphSpacing ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+    case LayoutRow::ParaSpacing: {
+      const uint8_t v = SETTINGS.extraParagraphSpacing;
+      return v < std::size(PARA_SPACING_IDS) ? I18N.get(PARA_SPACING_IDS[v]) : tr(STR_STATE_OFF);
+    }
+    case LayoutRow::Indent: {
+      const uint8_t v = SETTINGS.paragraphIndent;
+      return v < std::size(INDENT_IDS) ? I18N.get(INDENT_IDS[v]) : tr(STR_INDENT_BOOK);
+    }
     case LayoutRow::Alignment: {
       const uint8_t v = SETTINGS.paragraphAlignment;
       return v < std::size(ALIGNMENT_IDS) ? I18N.get(ALIGNMENT_IDS[v]) : I18N.get(StrId::STR_JUSTIFY);

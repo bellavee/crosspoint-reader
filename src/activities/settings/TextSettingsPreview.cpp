@@ -37,7 +37,7 @@ void relayout(PreviewLayout& layout, const GfxRenderer& renderer, int fontId, in
   style.alignment = toCssAlign(SETTINGS.paragraphAlignment);
   style.textAlignDefined = true;  // honor the user's choice; RTL auto-detected from text
 
-  ParsedText parsed(SETTINGS.extraParagraphSpacing != 0, SETTINGS.hyphenationEnabled != 0,
+  ParsedText parsed(SETTINGS.paragraphIndent, SETTINGS.hyphenationEnabled != 0,
                     SETTINGS.focusReadingEnabled != 0, style);
 
   // Feed one space-separated word at a time; addWord handles NFC/CJK/RTL/focus splitting
@@ -89,7 +89,12 @@ void renderPreview(const GfxRenderer& renderer, PreviewLayout& layout, int previ
 
   const float compression = SETTINGS.getReaderLineCompression();
   const int lineAdvance = std::max(1, renderer.getLineHeight(fontId, compression));
-  const int paragraphGap = SETTINGS.extraParagraphSpacing ? lineAdvance / 2 : 0;
+  int paragraphGap = 0;
+  if (SETTINGS.extraParagraphSpacing == PARAGRAPH_SPACING_EXTRA) {
+    paragraphGap = lineAdvance / 2;
+  } else if (SETTINGS.extraParagraphSpacing == PARAGRAPH_SPACING_HALF) {
+    paragraphGap = (renderer.getFontAscenderSize(fontId) + 1) / 2;
+  }
 
   // Re-lay-out (and re-prewarm glyphs) only when a layout-affecting setting or the
   // geometry changed; else reuse the cache. The prewarm inputs are (fontId, constant
@@ -103,7 +108,8 @@ void renderPreview(const GfxRenderer& renderer, PreviewLayout& layout, int previ
                        .textWidth = textWidth,
                        .lineCompression = compression,
                        .alignment = SETTINGS.paragraphAlignment,
-                       .extraParagraphSpacing = SETTINGS.extraParagraphSpacing != 0,
+                       .extraParagraphSpacing = SETTINGS.extraParagraphSpacing,
+                       .paragraphIndent = SETTINGS.paragraphIndent,
                        .characterSpacing = SETTINGS.getCharacterSpacing(),
                        .wordSpacingPercent = SETTINGS.wordSpacing,
                        .focusReading = SETTINGS.focusReadingEnabled != 0,

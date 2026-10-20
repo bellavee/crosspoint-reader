@@ -267,7 +267,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         // fixes the setting's position in the Reader category.
         SettingInfo::Enum(StrId::STR_FONT_SIZE, nullptr, {}, "fontSize", StrId::STR_CAT_READER).withTextSettings(),
         SettingInfo::Enum(StrId::STR_LINE_SPACING, &CrossPointSettings::lineSpacing,
-                          {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_WIDE, StrId::STR_EXTRA_WIDE}, "lineSpacing",
+                          {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_RELAXED, StrId::STR_WIDE,
+                           StrId::STR_EXTRA_WIDE},
+                          "lineSpacing",
                           StrId::STR_CAT_READER)
             .withTextSettings(),
         SettingInfo::Value(StrId::STR_WORD_SPACING, &CrossPointSettings::wordSpacing,
@@ -303,8 +305,14 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
             StrId::STR_ORIENTATION, &CrossPointSettings::orientation,
             {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_ORIENTATION_INVERTED, StrId::STR_LANDSCAPE_CCW},
             "orientation", StrId::STR_CAT_READER),
-        SettingInfo::Toggle(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
-                            "extraParagraphSpacing", StrId::STR_CAT_READER)
+        SettingInfo::Enum(StrId::STR_EXTRA_SPACING, &CrossPointSettings::extraParagraphSpacing,
+                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON, StrId::STR_PARA_SPACING_HALF},
+                          "extraParagraphSpacing", StrId::STR_CAT_READER)
+            .withTextSettings(),
+        SettingInfo::Enum(StrId::STR_FIRST_LINE_INDENT, &CrossPointSettings::paragraphIndent,
+                          {StrId::STR_INDENT_BOOK, StrId::STR_STATE_OFF, StrId::STR_INDENT_1EM, StrId::STR_INDENT_1_5EM,
+                           StrId::STR_INDENT_2EM},
+                          "paragraphIndent", StrId::STR_CAT_READER)
             .withTextSettings(),
         SettingInfo::Toggle(StrId::STR_TEXT_AA, &CrossPointSettings::textAntiAliasing, "textAntiAliasing",
                             StrId::STR_CAT_READER)

@@ -270,7 +270,7 @@ The Settings screen allows you to configure the device's behavior. There are a f
 
 - **Reader Font Size**: Choose a point size. Built-in and direct TTF/OTF/TTC fonts offer 12, 14, 16, and 18 pt. A `.cpfont` family offers the sizes installed for that family.
 
-- **Reader Line Spacing**: Adjust the spacing between lines; options are "Tight", "Normal" (default), or "Wide".
+- **Reader Line Spacing**: Adjust the spacing between lines; options are "Tight", "Normal" (default), "Relaxed", "Wide", or "Extra Wide".
 
 - **Reader Screen Margin**: Controls the screen margins in Reading Mode between 5 and 40 pixels in 5-pixel increments.
 
@@ -289,8 +289,15 @@ The Settings screen allows you to configure the device's behavior. There are a f
 
 - **Extra Paragraph Spacing**: Set how to handle paragraph breaks:
   
-  - "ON" - Vertical space will be added between paragraphs in Reading Mode
-  - "OFF" - Paragraphs will not have vertical space added, but will have first-line indentation
+  - "ON" - Half a line of vertical space is added after every paragraph in Reading Mode
+  - "OFF" - Paragraphs will not have vertical space added
+  - "Half" - Half an em of space between consecutive paragraphs (like KOReader's `p + p { margin-top: .5em }`)
+
+- **First-line Indent**: Indent the first line of each paragraph, independent of paragraph spacing:
+
+  - "Book" - Use the book's own indent (three spaces when the book sets none)
+  - "OFF" - No first-line indent
+  - "1 em", "1.5 em", "2 em" - Fixed indent, overriding the book's
 
 - **Dictionary**: Select the StarDict dictionary used for word lookups while reading, or "None" to disable lookups. *(Only shown when at least one dictionary folder exists under `/dictionaries/` on the SD card — see [docs/dictionary.md](docs/dictionary.md) for setup and usage.)*
 

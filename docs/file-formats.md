@@ -90,6 +90,12 @@ if (parsedSize != fileSize) {
 
 ## `section.bin`
 
+### Version 49
+
+The section header adds unsigned `paragraphIndent` (first-line indent mode)
+after `wordSpacingPercent`; it participates in cache validation. Sections from
+earlier versions are rebuilt.
+
 ### Version 48
 
 Version 48 keeps the version 47 serialized layout unchanged. It was bumped
@@ -200,7 +206,7 @@ import std.mem;
 import std.string;
 import std.core;
 
-#define EXPECTED_VERSION 48
+#define EXPECTED_VERSION 49
 #define MAX_STRING_LENGTH 65535
 #define FOOTNOTE_NUMBER_LEN 32
 #define FOOTNOTE_HREF_LEN 256
@@ -356,7 +362,7 @@ struct SectionBin {
 
     s32 fontId;
     float lineCompression;
-    bool extraParagraphSpacing;
+    u8 extraParagraphSpacing;  // 0 off, 1 extra, 2 half
     u8 paragraphAlignment;
     u16 viewportWidth;
     u16 viewportHeight;
@@ -366,6 +372,7 @@ struct SectionBin {
     bool focusReadingEnabled;
     s8 characterSpacing;
     u8 wordSpacingPercent;
+    u8 paragraphIndent;  // 0 book, 1 off, 2 1em, 3 1.5em, 4 2em
 
     u16 pageCount;
     u32 pageLutOffset;

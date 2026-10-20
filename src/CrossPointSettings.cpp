@@ -200,6 +200,12 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
     sleepTimeoutMinutes = sleepTimeoutEnumToMinutes(legacyValue);
     needsResave = true;
   }
+
+  // Before paragraphIndent existed, Extra Paragraph Spacing "On" also dropped first-line indents.
+  if (doc["paragraphIndent"].isNull() && extraParagraphSpacing == PARAGRAPH_SPACING_EXTRA) {
+    paragraphIndent = PARAGRAPH_INDENT_OFF;
+    needsResave = true;
+  }
   // Front button remap — managed by RemapFrontButtons sub-activity, not in SettingsList.
   frontButtonBack = clamp(doc["frontButtonBack"] | (uint8_t)FRONT_HW_BACK, FRONT_BUTTON_HARDWARE_COUNT, FRONT_HW_BACK);
   frontButtonConfirm =
@@ -292,7 +298,8 @@ ReaderRenderSpec CrossPointSettings::readerRenderSpec(const uint16_t viewportWid
   spec.lineCompression = getReaderLineCompression();
   spec.characterSpacing = getCharacterSpacing();
   spec.wordSpacingPercent = wordSpacing;
-  spec.extraParagraphSpacing = extraParagraphSpacing != 0;
+  spec.extraParagraphSpacing = extraParagraphSpacing;
+  spec.paragraphIndent = paragraphIndent;
   spec.paragraphAlignment = paragraphAlignment;
   spec.viewportWidth = viewportWidth;
   spec.viewportHeight = viewportHeight;
@@ -307,7 +314,7 @@ float CrossPointSettings::getReaderLineCompression() const {
   // SD card and vector fonts get a wider scale than the built-ins: their
   // faces carry their own (often generous) natural line height, so the old
   // Bookerly-tuned 1.1/1.2 steps were visually near-indistinguishable. At
-  // 12pt in portrait (~760px viewport) this scale spans ~26/24/19/15 lines
+  // 12pt in portrait (~760px viewport) this scale spans ~26/24/21/19/15 lines
   // per page — each step reads as a clearly different density.
   if (sdFontFamilyName[0] != '\0') {
     switch (lineSpacing) {
@@ -316,6 +323,8 @@ float CrossPointSettings::getReaderLineCompression() const {
       case NORMAL:
       default:
         return 1.0f;
+      case RELAXED:
+        return 1.15f;
       case WIDE:
         return 1.3f;
       case EXTRA_WIDE:
@@ -332,6 +341,8 @@ float CrossPointSettings::getReaderLineCompression() const {
         case NORMAL:
         default:
           return 1.0f;
+        case RELAXED:
+          return 1.05f;
         case WIDE:
           return 1.1f;
         case EXTRA_WIDE:
@@ -344,6 +355,8 @@ float CrossPointSettings::getReaderLineCompression() const {
         case NORMAL:
         default:
           return 0.95f;
+        case RELAXED:
+          return 0.975f;
         case WIDE:
           return 1.0f;
         case EXTRA_WIDE:

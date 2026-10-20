@@ -12,6 +12,7 @@
 
 #include "Epub/FootnoteEntry.h"
 #include "Epub/ParsedText.h"
+#include "Epub/ReaderRenderSpec.h"
 #include "Epub/blocks/ImageBlock.h"
 #include "Epub/blocks/TextBlock.h"
 #include "Epub/css/CssParser.h"
@@ -50,6 +51,10 @@ class ChapterHtmlSlimParser {
   int fontId;
   float lineCompression;
   bool extraParagraphSpacing;
+  bool halfParagraphSpacing;
+  uint8_t paragraphIndent;
+  // Depth of the most recently closed <p> while no other element has opened since; -1 otherwise
+  int lastClosedParagraphDepth = -1;
   int8_t characterSpacing = 0;
   uint8_t wordSpacingPercent = 100;
   uint8_t paragraphAlignment;
@@ -187,8 +192,8 @@ class ChapterHtmlSlimParser {
  public:
   explicit ChapterHtmlSlimParser(
       std::shared_ptr<Epub> epub, const std::string& filepath, GfxRenderer& renderer, const int fontId,
-      const float lineCompression, const bool extraParagraphSpacing, const uint8_t paragraphAlignment,
-      const uint16_t viewportWidth, const uint16_t viewportHeight, const bool hyphenationEnabled,
+      const float lineCompression, const uint8_t paragraphSpacing, const uint8_t paragraphIndent,
+      const uint8_t paragraphAlignment, const uint16_t viewportWidth, const uint16_t viewportHeight, const bool hyphenationEnabled,
       const bool focusReadingEnabled,
       const std::function<void(std::unique_ptr<Page>, uint16_t, uint16_t, uint32_t)>& completePageFn,
       const bool embeddedStyle, const std::string& contentBase, const std::string& imageBasePath,
@@ -200,7 +205,9 @@ class ChapterHtmlSlimParser {
         renderer(renderer),
         fontId(fontId),
         lineCompression(lineCompression),
-        extraParagraphSpacing(extraParagraphSpacing),
+        extraParagraphSpacing(paragraphSpacing == PARAGRAPH_SPACING_EXTRA),
+        halfParagraphSpacing(paragraphSpacing == PARAGRAPH_SPACING_HALF),
+        paragraphIndent(paragraphIndent),
         paragraphAlignment(paragraphAlignment),
         viewportWidth(viewportWidth),
         viewportHeight(viewportHeight),
