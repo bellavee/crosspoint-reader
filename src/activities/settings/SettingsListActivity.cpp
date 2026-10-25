@@ -107,5 +107,5 @@ void SettingsListActivity::drawChrome() {
   // Version rides in the header's trailing label slot: the footer position
   // conflicts with button hints on non-touch devices.
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight},
-                 tr(STR_SETTINGS_TITLE), "CrossBind Â· v" CROSSPOINT_VERSION);
+                 tr(STR_SETTINGS_TITLE), "CrossBind · v" CROSSPOINT_VERSION);
 }
