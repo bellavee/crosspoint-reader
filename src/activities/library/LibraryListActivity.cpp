@@ -1132,7 +1132,7 @@ void LibraryListActivity::buildGrid(UiScreen& screen) {
   const auto body = screen.body();
   // Columns use the tab bar's slot geometry (buildTabBar: full screen width
   // inset by the side padding, equal slots split by tabSpacing), so each
-  // column of covers centers under its tab.
+  // column of covers centers under its tab unless the tabs are left-aligned.
   const auto frameRect = screen.frame().screen();
   const int side = metrics.contentSidePadding;
   const int columnGap = metrics.tabSpacing;

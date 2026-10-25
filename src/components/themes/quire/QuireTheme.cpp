@@ -2,7 +2,6 @@
 
 #include <Bitmap.h>
 #include <GfxRenderer.h>
-#include <HalDisplay.h>
 #include <HalGPIO.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -222,6 +221,15 @@ void QuireTheme::drawHints(GfxRenderer& renderer, const char* const labels[4], c
   constexpr int wideSlots[] = {38, 154, 268, 384};
   const int* slots = renderer.getScreenWidth() >= 528 ? wideSlots : narrowSlots;
   const bool grayscale = renderer.getRenderMode() != GfxRenderer::BW && !renderer.grayPlanesAreAbsolute();
+  // Center the capitals' ink in the pill: the ascender leaves room for stacked
+  // Vietnamese marks, so centering it would sit the label low.
+  int textY = top + std::max(1, (hintHeight - renderer.getTextHeight(UI_10_FONT_ID)) / 2);
+  const auto fontIt = renderer.getFontMap().find(UI_10_FONT_ID);
+  if (fontIt != renderer.getFontMap().end()) {
+    if (const auto glyph = fontIt->second.getGlyph('H', EpdFontFamily::REGULAR)) {
+      textY = top + (hintHeight + glyph->top) / 2 - renderer.getFontAscenderSize(UI_10_FONT_ID);
+    }
+  }
 
   for (int i = 0; i < 4; ++i) {
     if (labels[i] == nullptr || labels[i][0] == '\0') continue;
@@ -234,8 +242,7 @@ void QuireTheme::drawHints(GfxRenderer& renderer, const char* const labels[4], c
     if (isPrimary) renderer.fillRoundedRect(x, top, hintWidth, hintHeight, radius, Color::Black);
     const std::string label = renderer.truncatedText(UI_10_FONT_ID, labels[i], hintWidth - 8, style);
     const int width = renderer.getTextWidth(UI_10_FONT_ID, label.c_str(), style);
-    const int y = top + std::max(1, (hintHeight - renderer.getTextHeight(UI_10_FONT_ID)) / 2);
-    renderer.drawText(UI_10_FONT_ID, x + (hintWidth - width) / 2, y, label.c_str(), !isPrimary, style);
+    renderer.drawText(UI_10_FONT_ID, x + (hintWidth - width) / 2, textY, label.c_str(), !isPrimary, style);
   }
 
   renderer.setOrientation(origOrientation);
@@ -278,6 +285,7 @@ void QuireTheme::drawRecentBookCover(GfxRenderer& renderer, const Rect rect, con
     // Snapshot lost: draw the placeholder so the page never shows a hole.
     drawCover(renderer, std::string(), cover);
   }
+  renderer.drawRoundedRect(cover.x, cover.y, cover.width, cover.height, 2, radius, true);
 
   const int columnX = cover.x + cover.width + columnGap;
   drawStats(renderer, columnX, cover.y, rect.x + rect.width - side - columnX, cover.height);
@@ -433,33 +441,16 @@ void QuireTheme::drawStats(const GfxRenderer& renderer, const int x, const int y
   renderer.fillRect(x, baseline, width, 2, true);
 }
 
-// --- Popups ---
+// --- Progress ---
 
-Rect QuireTheme::drawPopup(const GfxRenderer& renderer, const char* message) const {
-  constexpr int padX = 28;
-  constexpr int padY = 18;
-  constexpr int barSpace = 16;  // room for fillPopupProgress under the text
-  const int screenWidth = renderer.getScreenWidth();
-  const std::string text = renderer.truncatedText(UI_12_FONT_ID, message, screenWidth - 2 * side - 2 * padX);
-  const int textWidth = renderer.getTextWidth(UI_12_FONT_ID, text.c_str());
-  const int w = std::min(screenWidth - 2 * side, std::max(textWidth + 2 * padX, screenWidth / 2));
-  const int h = renderer.getLineHeight(UI_12_FONT_ID) + 2 * padY + barSpace;
-  const int x = (screenWidth - w) / 2;
-  const int y = renderer.getScreenHeight() * 2 / 5 - h / 2;
-
-  renderer.fillRoundedRect(x, y, w, h, radius, Color::White);
-  renderer.drawRoundedRect(x, y, w, h, 2, radius, true);
-  renderer.drawText(UI_12_FONT_ID, x + (w - textWidth) / 2, y + padY, text.c_str(), true);
-  renderer.displayBuffer();
-  return Rect{x, y, w, h};
-}
-
-void QuireTheme::fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const {
-  constexpr int padX = 28;
-  constexpr int barHeight = 8;
-  const int barY = layout.y + layout.height - 18 - barHeight / 2;
-  drawProgress(renderer, layout.x + padX, barY, layout.width - 2 * padX, barHeight, progress);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+// Download progress in the home bar's rounded style, the percent under it as in BaseTheme.
+void QuireTheme::drawProgressBar(const GfxRenderer& renderer, const Rect rect, const size_t current,
+                                 const size_t total) const {
+  if (total == 0) return;
+  const int percent = static_cast<int>(static_cast<uint64_t>(current) * 100 / total);
+  drawProgress(renderer, rect.x, rect.y, rect.width, rect.height, percent);
+  const std::string percentText = std::to_string(percent) + "%";
+  renderer.drawCenteredText(UI_10_FONT_ID, rect.y + rect.height + 15, percentText.c_str());
 }
 
 // The cover, a caps "Opening", the title and what is happening, centered.

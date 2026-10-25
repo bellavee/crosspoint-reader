@@ -30,35 +30,47 @@ constexpr ThemeMetrics values = [] {
   v.headerUnderlineSize = 0;
   v.headerTitleAlign = 0;  // left
   v.headerClockCentered = false;
+  // Clock and battery on the same 22px line as the titles and the home cover.
+  v.headerStatusExtraInset = 0;
   v.tabSpacing = 20;
-  v.homeTopPadding = 44;
+  // The status digits' ink spans y 12..26 (SMALL font centered on the 5..33
+  // strip); the cover starts the same 12px below it.
+  v.homeTopPadding = 38;
   v.homeCoverHeight = 420;
   // The whole home body; only the cover inside it is snapshotted.
   v.homeCoverTileHeight = 680;
   v.homeRecentBooksCount = 1;
   v.homeContinueReadingInMenu = false;
   v.buttonHintsHeight = 64;
+  // Status popups as in Lyra: white text on a black card, tight margins.
+  v.popupTopOffsetRatio = 0.36f;
+  v.popupMarginX = 16;
+  v.popupMarginY = 12;
   v.popupCornerRadius = 6;
   v.popupFrameThickness = 2;
   v.popupTextBold = false;
   v.popupTextInverted = false;
-  v.popupProgressBarHeight = 8;
-  v.popupProgressDrawOutline = true;
+  v.popupProgressBarHeight = 4;
+  v.popupProgressDrawOutline = false;
   v.popupProgressClampPercent = true;
   v.popupProgressFillInverted = false;
   v.popupProgressOutlineInverted = false;
   v.optionPopupInnerPadding = 24;
   v.optionPopupItemSpacing = 12;
+  v.optionPopupSelectionVPadding = 12;
   v.controlRadius = 6;
   v.sheetRadius = 6;
   v.capsuleRadius = 6;
   v.homeCompactMenu = true;
   v.tabsUnderline = true;
+  v.tabsLeftAligned = true;
   v.libraryCoverGrid = true;
   v.libraryGridProgress = true;
   v.homeDirectButtons = true;
   v.settingsSectionHints = true;
   v.dialogFormal = true;
+  v.optionPopupSmallLabels = true;
+  v.settingsVersionLabel = false;
   return v;
 }();
 }  // namespace QuireMetrics
@@ -79,8 +91,7 @@ class QuireTheme : public BaseTheme {
                            std::function<bool()> storeCoverBuffer) const override;
   int homeCoverThumbHeight(const GfxRenderer& renderer) const override;
   Rect homeCoverSnapshotRect(const GfxRenderer& renderer, Rect tile) const override;
-  Rect drawPopup(const GfxRenderer& renderer, const char* message) const override;
-  void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, int progress) const override;
+  void drawProgressBar(const GfxRenderer& renderer, Rect rect, size_t current, size_t total) const override;
   bool drawBookOpening(const GfxRenderer& renderer, const BookOpening& book) const override;
   bool usesReadingStatus() const override { return true; }
 

@@ -239,13 +239,14 @@ class OptionPopup {
     props.styles.focused = props.styles.normal;
     props.styles.active = props.styles.normal;
     props.styles.disabled = props.styles.normal;
+    if (metrics.optionPopupSmallLabels) props.buttonText.font = fui::GfxRendererTarget::FONT_SMALL;
     props.buttonHeight =
-        fui::clampI16(target.lineHeight(fui::GfxRendererTarget::FONT_BODY) + metrics.optionPopupSelectionVPadding * 2);
+        fui::clampI16(target.lineHeight(props.buttonText.font) + metrics.optionPopupSelectionVPadding * 2);
 
     // Formal two-choice dialog (Quire): a caps caption, the subject in the
     // serif, left-aligned text and the two choices side by side, over a
     // dimmed screen. Captions in scripts with diacritics keep their case.
-    const bool formal = metrics.dialogFormal && count == 2 && (!title.empty() || !headline.empty());
+    const bool formal = metrics.dialogFormal && !menuLayout && count == 2 && (!title.empty() || !headline.empty());
     std::string caption;
     if (formal) {
       caption = title;
@@ -292,6 +293,10 @@ class OptionPopup {
 
   bool isActive() const { return active; }
 
+  // Call after show(): the options are places to go, not answers, so they
+  // stay in one column even when there are two.
+  void setMenuLayout() { menuLayout = true; }
+
   // Close without firing the callback (the surface under the popup is going
   // away, e.g. its host screen closes from outside the popup's own input).
   void dismiss() {
@@ -313,6 +318,7 @@ class OptionPopup {
     selectedIndex = currentIndex >= 0 && currentIndex < count ? currentIndex : 0;
     onSelectCallback = std::move(onSelect);
     message.clear();
+    menuLayout = false;
     uiReady = false;
     active = count > 0;
   }
@@ -321,6 +327,7 @@ class OptionPopup {
   std::string title;
   std::string headline;
   std::string message;
+  bool menuLayout = false;
   std::vector<std::string> ownedStrings;
   int selectedIndex = 0;
   std::function<void(int)> onSelectCallback;

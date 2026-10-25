@@ -15,6 +15,7 @@ namespace fui = freeink::ui;
 
 namespace {
 constexpr int16_t ICON_SIZE = 32;
+constexpr int16_t SUMMARY_ROW_PADDING_Y = 10;
 // Row icons, indexed by SettingsSection.
 constexpr const freeink::Icon* SECTION_ICONS[SETTINGS_SECTION_COUNT] = {
     &icon_settings_32, &icon_smartphone_32, &icon_book_open_32, &icon_pointer_32, &icon_library_32, &icon_wifi_32,
@@ -74,7 +75,9 @@ void SettingsListActivity::buildScreen(UiScreen& screen) {
   const auto& theme = screen.theme();
   const int16_t textHeight = static_cast<int16_t>(screen.target().lineHeight(theme.bodyText.font) +
                                                   screen.target().lineHeight(theme.smallText.font));
-  const int16_t paddingY = mappedInput.hasTouch() ? theme.listTouchRowPaddingY : theme.listRowPaddingY;
+  int16_t paddingY = mappedInput.hasTouch() ? theme.listTouchRowPaddingY : theme.listRowPaddingY;
+  // Summary rows: room under the summary to match the gap between its two lines.
+  if (UITheme::getInstance().getMetrics().settingsSectionHints) paddingY = std::max(paddingY, SUMMARY_ROW_PADDING_Y);
   props.rowHeight = static_cast<int16_t>(std::max<int16_t>(textHeight, ICON_SIZE) + 2 * paddingY);
   syncListViewport(screen, props);
   screen.list(props);
@@ -109,5 +112,5 @@ void SettingsListActivity::drawChrome() {
   // Version rides in the header's trailing label slot: the footer position
   // conflicts with button hints on non-touch devices.
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight},
-                 tr(STR_SETTINGS_TITLE), "CrossBind · v" CROSSPOINT_VERSION);
+                 tr(STR_SETTINGS_TITLE), metrics.settingsVersionLabel ? "CrossBind · v" CROSSPOINT_VERSION : nullptr);
 }

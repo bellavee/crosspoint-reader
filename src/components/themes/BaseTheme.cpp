@@ -161,7 +161,8 @@ bool BaseTheme::drawCoverThumbFill(const GfxRenderer& renderer, const Bitmap& bi
   return drawn;
 }
 
-void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const size_t current, const size_t total) {
+void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const size_t current,
+                                const size_t total) const {
   if (total == 0) {
     return;
   }
@@ -321,7 +322,10 @@ void BaseTheme::drawSideButtonHints(const GfxRenderer& renderer, const char* top
 // Slightly inside the side padding: the battery's boxed glyph and the clock
 // digits read wider than text/cover ink on the same line, so flush placement
 // looks like it overhangs the content columns.
-int BaseTheme::headerStatusInset() { return UITheme::getInstance().getMetrics().headerSidePadding + 4; }
+int BaseTheme::headerStatusInset() {
+  const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();
+  return metrics.headerSidePadding + metrics.headerStatusExtraInset;
+}
 
 void BaseTheme::applyHeaderStatus(const GfxRenderer& renderer, freeink::ui::HeaderProps& props) {
   const ThemeMetrics& metrics = UITheme::getInstance().getMetrics();

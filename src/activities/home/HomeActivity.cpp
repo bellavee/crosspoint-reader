@@ -727,6 +727,7 @@ void HomeActivity::openMoreMenu() {
   morePopup.show(StrId::STR_MORE, options, 0, [this](const int index) {
     if (index >= 0 && index < static_cast<int>(moreItems.size())) openMenuItem(moreItems[static_cast<size_t>(index)]);
   });
+  morePopup.setMenuLayout();
   requestUpdate();
 }
 

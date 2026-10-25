@@ -64,6 +64,9 @@ struct ThemeMetrics {
   bool headerShowsClock = true;
   // Clock slot: centered on the band, or on the left after the back arrow.
   bool headerClockCentered = true;
+  // Corner clock and battery sit this much further in than the header title,
+  // an optical bias for the digits' open sides.
+  int headerStatusExtraInset = 4;
   int menuRowHeight;
   int menuSpacing;
 
@@ -135,6 +138,9 @@ struct ThemeMetrics {
   // Tab bars mark the active tab with an underline and no band wash; with
   // focus on the bar the active tab takes the list's selection fill.
   bool tabsUnderline = false;
+  // Tabs hug their labels and line up from the left edge instead of sharing
+  // the bar in equal slots.
+  bool tabsLeftAligned = false;
   // Library shows books as a cover grid, one column under each tab, instead
   // of a list. Cover size: UITheme::libraryCoverHeight().
   bool libraryCoverGrid = false;
@@ -149,6 +155,10 @@ struct ThemeMetrics {
   // Two-option dialogs read like a printed form: caption, serif headline,
   // left-aligned text and the two choices side by side over a dimmed screen.
   bool dialogFormal = false;
+  // Option popups set their choices in the small UI font.
+  bool optionPopupSmallLabels = false;
+  // The Settings header carries the firmware version on its right.
+  bool settingsVersionLabel = true;
 };
 
 // What a theme's book-opening screen shows while a book is being indexed.
@@ -267,7 +277,7 @@ class BaseTheme {
   // Draws a pre-dithered cover thumb 1:1, centered and clipped to fill the
   // slot. Rescaling a dithered bitmap aliases badly, so overflow is cropped.
   static bool drawCoverThumbFill(const GfxRenderer& renderer, const Bitmap& bitmap, Rect slot, int xOffset = 0);
-  static void drawProgressBar(const GfxRenderer& renderer, Rect rect, size_t current, size_t total);
+  virtual void drawProgressBar(const GfxRenderer& renderer, Rect rect, size_t current, size_t total) const;
   void drawBatteryLeft(const GfxRenderer& renderer, Rect rect,
                        bool showPercentage = true) const;  // Left aligned (reader mode)
   virtual void fillBatteryIcon(const GfxRenderer& renderer, Rect rect, uint16_t percentage) const;

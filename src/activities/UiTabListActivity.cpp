@@ -151,6 +151,22 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
     tabProps.contentInset.right = tabPillMaxPad;
   }
 
+  // Left-aligned tabs start under the header title. A focused pill gets side
+  // padding and the gap shrinks by the same amount, so labels stay put when
+  // focus enters the bar.
+  int16_t slotsShift = 0;
+  if (metrics.tabsLeftAligned) {
+    constexpr int16_t FOCUSED_PILL_PAD = 8;
+    const int16_t pad = tabsFocused ? FOCUSED_PILL_PAD : 0;
+    tabProps.layout = fui::TabBarLayout::ContentWidth;
+    tabProps.tabInset.left = 0;
+    tabProps.tabInset.right = 0;
+    tabProps.contentInset.left = pad;
+    tabProps.contentInset.right = pad;
+    tabProps.gap = static_cast<int16_t>(std::max(0, metrics.tabSpacing - 2 * pad));
+    slotsShift = pad;
+  }
+
   // Legacy Lyra two-state treatment: with the selection on the tab band, the
   // band fills gray and the active tab is a solid pill; with the selection
   // down in the list, the band is plain and the active tab keeps a gray box
@@ -208,8 +224,8 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
   // Draw the line below the tabs across the full background width.
   const auto divider = static_cast<int16_t>(std::max(1, metrics.headerUnderlineSize));
   const auto side = static_cast<int16_t>(metrics.contentSidePadding);
-  const fui::Rect slotsRect{static_cast<int16_t>(contentTabRect.x + side), tabRect.y,
-                            static_cast<int16_t>(contentTabRect.width - 2 * side),
+  const fui::Rect slotsRect{static_cast<int16_t>(contentTabRect.x + side - slotsShift), tabRect.y,
+                            static_cast<int16_t>(contentTabRect.width - 2 * side + slotsShift),
                             static_cast<int16_t>(tabRect.height - divider)};
   tabProps.divider = false;
   fui::tabBar(screen.frame(), slotsRect, tabProps);
