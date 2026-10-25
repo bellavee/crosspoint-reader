@@ -19,6 +19,7 @@
 #include "SdCardFontSystem.h"
 #include "XtcReaderActivity.h"
 #include "util/PluginEvents.h"
+#include "util/ReadingStats.h"
 
 ReaderActivity::ReaderActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput,
                                std::string bookPath, const bool allowFastInitialRefresh)
@@ -107,6 +108,8 @@ void ReaderActivity::onExit() {
   // Flush BEFORE the ReaderExit event: the session's final progress must be
   // durable before a subscriber can act on the exit notification.
   flushReaderSession();
+  // Lists (the Quire library grid) draw this instead of opening each book.
+  reading_stats::recordBookPercent(bookPath, getScreenshotInfo().progressPercent);
 
   if (pluginevents::anySubscriber(pluginevents::Event::ReaderExit)) {
     char percent[8];
@@ -126,6 +129,10 @@ void ReaderActivity::onExit() {
 void ReaderActivity::prepareForSleep() { flushReaderSession(); }
 
 void ReaderActivity::flushReaderSession() {
+  // The on-device stats take every counted session, plugin subscriber or not.
+  if (readerSession.isEmitWorthy()) {
+    reading_stats::recordSession(readerSession.startTime(), readerSession.durationSeconds());
+  }
   if (!readerSession.isEmitWorthy() || !pluginevents::anySubscriber(pluginevents::Event::ReaderSession)) {
     readerSession.reset();
     return;

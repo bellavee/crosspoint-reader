@@ -100,7 +100,7 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
   if (sdFontFamilyName[0] != '\0') {
     doc["sdFontFamilyName"] = sdFontFamilyName;
   }
-  doc["uiThemeRev"] = 2;  // see the uiTheme migration in fromJson()
+  doc["uiThemeRev"] = 3;  // see the uiTheme migration in fromJson()
   // UI font family name — dynamic setting (registry-dependent), save manually
   if (uiFontFamilyName[0] != '\0') {
     doc["uiFontFamilyName"] = uiFontFamilyName;
@@ -233,13 +233,16 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
     needsResave = true;
   }
 
-  // Older bellasekai builds kept two CrossBind variants (4 gray, 5 black) and
-  // put the cover grid at 6; both variants are now the one CrossBind theme.
-  if (doc["uiThemeRev"].isNull()) {
+  // Theme indices moved twice in bellasekai builds: rev 1 (none stored) kept
+  // two CrossBind variants (4 gray, 5 black) and the cover grid at 6; rev 2
+  // merged the CrossBind pair and put the cover grid at 5; rev 3 adds Quire
+  // at 5 and moves the cover grid back to 6.
+  const int themeRev = doc["uiThemeRev"] | 1;
+  if (themeRev < 3) {
     const uint8_t storedTheme = doc["uiTheme"] | uiTheme;
-    if (storedTheme == 5) {
+    if (themeRev == 1 && storedTheme == 5) {
       uiTheme = CROSSBIND;
-    } else if (storedTheme == 6) {
+    } else if ((themeRev == 1 && storedTheme == 6) || (themeRev == 2 && storedTheme == 5)) {
       uiTheme = COVER_GRID;
     }
     needsResave = true;

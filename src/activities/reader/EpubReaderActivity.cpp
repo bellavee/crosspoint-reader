@@ -58,6 +58,7 @@
 #include "fontIds.h"
 #include "util/BookmarkUtil.h"
 #include "util/ButtonNavigator.h"
+#include "util/ReadingStats.h"
 #include "util/ScreenshotUtil.h"
 
 namespace {
@@ -247,7 +248,7 @@ bool EpubReaderActivity::loadBook() {
   const bool uncached = !Storage.exists((loadedEpub->getCachePath() + "/book.bin").c_str());
   if (uncached) {
     disableFastInitialRefresh();
-    GUI.drawPopup(renderer, tr(STR_INDEXING));
+    showIndexing();
   }
 
   bool loaded;
@@ -399,9 +400,30 @@ bool EpubReaderActivity::buildTickHeapGate() {
   return !buildHeapPaused;
 }
 
+void EpubReaderActivity::showIndexing() {
+  if (!firstPageShown) {
+    // The book may not be loaded yet (first open builds book.bin): its title
+    // and cover come from the recent books entry the open just made.
+    BookOpening opening;
+    opening.status = tr(STR_INDEXING);
+    for (const RecentBook& book : RECENT_BOOKS.getBooks()) {
+      if (book.path != bookPath) continue;
+      opening.title = book.title.c_str();
+      opening.author = book.author.c_str();
+      const int coverHeight = UITheme::getInstance().libraryCoverHeight(renderer);
+      if (!book.coverBmpPath.empty() && coverHeight > 0) {
+        opening.coverPath = UITheme::getCoverThumbPath(book.coverBmpPath, coverHeight);
+      }
+      break;
+    }
+    if (GUI.drawBookOpening(renderer, opening)) return;
+  }
+  GUI.drawPopup(renderer, tr(STR_INDEXING));
+}
+
 void EpubReaderActivity::showBuildPopup(GfxRenderer& renderer, int& pagesUntilFullRefresh) {
   if (!buildPopupPending || !renderer.hasFrameBuffer()) return;
-  GUI.drawPopup(renderer, tr(STR_INDEXING));
+  showIndexing();
   pagesUntilFullRefresh = 1;
   buildPopupPending = false;
 }
@@ -725,6 +747,10 @@ void EpubReaderActivity::loop() {
 
   if (atEndOfBook) {
     pendingReadFolderMove = SETTINGS.moveFinishedToReadFolder && !isInReadFolder(epub->getPath());
+    if (!finishedRecorded) {
+      reading_stats::recordFinished(epub->getPath());
+      finishedRecorded = true;
+    }
   } else {
     pendingReadFolderMove = false;
   }
@@ -1683,10 +1709,10 @@ void EpubReaderActivity::renderBook() {
 
       const bool needsFullBuild = pendingPercentJump;
       if (needsFullBuild) {
-        GUI.drawPopup(renderer, tr(STR_INDEXING));
+        showIndexing();
         pagesUntilFullRefresh = 1;
         const auto popupFn = [this]() {
-          if (renderer.hasFrameBuffer()) GUI.drawPopup(renderer, tr(STR_INDEXING));
+          if (renderer.hasFrameBuffer()) showIndexing();
         };
         if (!makeRoomForChapterBuild()) {
           section.reset();
@@ -1724,7 +1750,7 @@ void EpubReaderActivity::renderBook() {
                                              target > BUILD_POPUP_PAGE_THRESHOLD);
           }
           if (showPopup) {
-            GUI.drawPopup(renderer, tr(STR_INDEXING));
+            showIndexing();
             pagesUntilFullRefresh = 1;
           }
           buildPopupPending = !showPopup;
@@ -1826,7 +1852,7 @@ void EpubReaderActivity::renderBook() {
     return;
   }
   if (section->isPartial() && section->currentPage >= static_cast<int>(section->pageCount)) {
-    GUI.drawPopup(renderer, tr(STR_INDEXING));
+    showIndexing();
     pagesUntilFullRefresh = 1;
   }
   while (section->isPartial() && section->currentPage >= static_cast<int>(section->pageCount)) {
@@ -2050,6 +2076,7 @@ void EpubReaderActivity::rememberCurrentContentOffset() {
 void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int orientedMarginTop,
                                         const int orientedMarginRight, const int orientedMarginBottom,
                                         const int orientedMarginLeft) {
+  firstPageShown = true;
   const auto t0 = millis();
   const int fontId = SETTINGS.getReaderFontId();
   ImageBlock::clearRenderFailures();

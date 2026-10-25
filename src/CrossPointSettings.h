@@ -193,10 +193,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
 
   // UI Theme. The stored value is the index into homeThemeValues(), whose
   // PSRAM-only COVER_GRID entry is dropped on boards without PSRAM, so it
-  // stays last; CrossBind sits before it (a cover grid saved as 4 by a stock
-  // build reads back as CrossBind). Older bellasekai builds stored a second
-  // CrossBind variant at 5 and the cover grid at 6; fromJson() folds those.
-  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_3_COVERS = 2, ROUNDEDRAFF = 3, CROSSBIND = 4, COVER_GRID = 5 };
+  // stays last; the fork's themes sit before it (a cover grid saved as 4 by a
+  // stock build reads back as CrossBind). Earlier bellasekai builds put the
+  // cover grid at 5 or 6; fromJson() folds those via uiThemeRev.
+  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_3_COVERS = 2, ROUNDEDRAFF = 3, CROSSBIND = 4, QUIRE = 5, COVER_GRID = 6 };
 
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
@@ -370,6 +370,13 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t removeReadBooksFromRecents = 0;
   // Move epub to /Read/ folder on SD card when finished (0 = disabled, 1 = enabled)
   uint8_t moveFinishedToReadFolder = 0;
+  // Books to finish this year, shown beside the count on the Quire home.
+  enum READING_GOAL { GOAL_OFF = 0, GOAL_12, GOAL_24, GOAL_36, GOAL_52, READING_GOAL_COUNT };
+  uint8_t readingGoal = GOAL_OFF;
+  int readingGoalBooks() const {
+    static constexpr int BOOKS[READING_GOAL_COUNT] = {0, 12, 24, 36, 52};
+    return readingGoal < READING_GOAL_COUNT ? BOOKS[readingGoal] : 0;
+  }
   // Short press Back goes to file browser instead of home (0 = disabled, 1 = enabled)
   uint8_t backShortToFileBrowser = 0;
   // Image rendering mode in EPUB reader

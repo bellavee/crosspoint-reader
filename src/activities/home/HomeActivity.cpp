@@ -331,34 +331,19 @@ void HomeActivity::loop() {
   const int menuCount = getMenuItemCount();
   const auto& metrics = UITheme::getInstance().getMetrics();
 
+  if (morePopup.handleInput(mappedInput, [this] { requestUpdate(); })) return;
+  if (metrics.homeDirectButtons) {
+    loopDirectButtons();
+    return;
+  }
+
   auto activateSelection = [this] {
     if (selectorIndex < recentBooks.size()) {
       onRecentBookSelected(recentBooks[selectorIndex].path);
       return;
     }
     const int menuIndex = selectorIndex - static_cast<int>(recentBooks.size());
-    switch (indexToMenuItem(menuIndex, hasLibrarySlot(), compactMenu())) {
-      case HomeMenuItem::FILE_BROWSER:
-        onFileBrowserOpen();
-        break;
-      case HomeMenuItem::LIBRARY:
-        onLibraryOpen();
-        break;
-      case HomeMenuItem::BINDERY:
-        onBinderyOpen();
-        break;
-      case HomeMenuItem::OPDS_BROWSER:  // the library slot
-        hasPlugins ? onPluginsOpen() : onOpdsBrowserOpen();
-        break;
-      case HomeMenuItem::FILE_TRANSFER:
-        onFileTransferOpen();
-        break;
-      case HomeMenuItem::SETTINGS_MENU:
-        onSettingsOpen();
-        break;
-      default:
-        break;
-    }
+    openMenuItem(indexToMenuItem(menuIndex, hasLibrarySlot(), compactMenu()));
   };
 
   // Cover grid home splits navigation by button group (see below); the flat
@@ -543,15 +528,52 @@ void HomeActivity::render(RenderLock&&) {
   // Record the tile rect so storeCoverBuffer (called from the theme) knows
   // which sub-region of the framebuffer to snapshot. ~16 KB in Portrait
   // instead of the 48 KB full framebuffer the previous bind captured.
-  coverRectX = content.x;
-  coverRectY = metrics.homeTopPadding;
-  coverRectW = content.width;
-  coverRectH = metrics.homeCoverTileHeight;
+  {
+    const Rect snapshot = GUI.homeCoverSnapshotRect(
+        renderer, Rect{content.x, metrics.homeTopPadding, content.width, metrics.homeCoverTileHeight});
+    coverRectX = snapshot.x;
+    coverRectY = snapshot.y;
+    coverRectW = snapshot.width;
+    coverRectH = snapshot.height;
+  }
 
   GUI.drawRecentBookCover(renderer, Rect{content.x, metrics.homeTopPadding, content.width, metrics.homeCoverTileHeight},
                           recentBooks, selectorIndex, coverRendered, coverBufferStored, bufferRestored,
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
+  if (metrics.homeDirectButtons) {
+    if (morePopup.isActive()) {
+      const auto popupLabels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+      GUI.drawButtonHints(renderer, popupLabels.btn1, popupLabels.btn2, popupLabels.btn3, popupLabels.btn4);
+      morePopup.render(renderer);
+    } else {
+      const char* resume = nullptr;
+      const auto labels = directButtonLabels(resume);
+      const char* slots[] = {labels.btn1, labels.btn2, labels.btn3, labels.btn4};
+      int primary = -1;
+      for (int i = 0; i < 4; ++i) {
+        if (slots[i] == resume && resume[0] != '\0') primary = i;
+      }
+      GUI.drawButtonHintsPrimary(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, primary);
+    }
+  } else {
+    renderMenu(content, pageHeight);
+  }
+
+  renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+
+  if (!firstRenderDone) {
+    firstRenderDone = true;
+    requestUpdate();
+  } else if (!recentsLoaded && !recentsLoading) {
+    recentsLoading = true;
+    const int themeThumbHeight = GUI.homeCoverThumbHeight(renderer);
+    loadRecentCovers(themeThumbHeight > 0 ? themeThumbHeight : metrics.homeCoverHeight);
+  }
+}
+
+void HomeActivity::renderMenu(const Rect& content, const int pageHeight) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
   // Build menu items dynamically
   std::vector<const char*> menuItems;
   std::vector<UIIcon> menuIcons;
@@ -617,17 +639,95 @@ void HomeActivity::render(RenderLock&&) {
   const auto labels = mappedInput.mapLabels(recentBooks.empty() ? "" : tr(STR_RESUME), tr(STR_SELECT), tr(STR_DIR_UP),
                                             tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+}
 
-  renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
-
-  if (!firstRenderDone) {
-    firstRenderDone = true;
-    requestUpdate();
-  } else if (!recentsLoaded && !recentsLoading) {
-    recentsLoading = true;
-    const int themeThumbHeight = GUI.homeCoverThumbHeight(renderer);
-    loadRecentCovers(themeThumbHeight > 0 ? themeThumbHeight : metrics.homeCoverHeight);
+void HomeActivity::openMenuItem(const HomeMenuItem item) {
+  switch (item) {
+    case HomeMenuItem::FILE_BROWSER:
+      onFileBrowserOpen();
+      break;
+    case HomeMenuItem::LIBRARY:
+      onLibraryOpen();
+      break;
+    case HomeMenuItem::BINDERY:
+      onBinderyOpen();
+      break;
+    case HomeMenuItem::OPDS_BROWSER:  // the library slot
+      hasPlugins ? onPluginsOpen() : onOpdsBrowserOpen();
+      break;
+    case HomeMenuItem::FILE_TRANSFER:
+      onFileTransferOpen();
+      break;
+    case HomeMenuItem::SETTINGS_MENU:
+      onSettingsOpen();
+      break;
+    default:
+      break;
   }
+}
+
+MappedInputManager::Labels HomeActivity::directButtonLabels(const char*& resume) const {
+  resume = hasContinueReading ? tr(STR_RESUME) : "";
+  return mappedInput.mapLabels(resume, tr(STR_LIBRARY), tr(STR_BINDERY), tr(STR_SETTINGS_TITLE));
+}
+
+void HomeActivity::loopDirectButtons() {
+  using Button = MappedInputManager::Button;
+  const auto resumeBook = [this] {
+    if (hasContinueReading && !recentBooks.empty()) onRecentBookSelected(recentBooks[0].path);
+  };
+  if (mappedInput.wasReleased(Button::Back)) return resumeBook();
+  if (mappedInput.wasReleased(Button::Confirm)) return onLibraryOpen();
+  if (mappedInput.wasReleased(Button::Left)) return onBinderyOpen();
+  if (mappedInput.wasReleased(Button::Right)) return onSettingsOpen();
+  if (mappedInput.wasReleased(Button::Up) || mappedInput.wasReleased(Button::Down) ||
+      mappedInput.wasSwipe() == MappedInputManager::SwipeDir::Up) {
+    return openMoreMenu();
+  }
+
+  // Touch: the hint band, one quarter per button in the order drawn.
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int bandHeight = UITheme::getInstance().getMetrics().buttonHintsHeight;
+  int column = -1;
+  if (mappedInput.colTouch(column, 0, pageWidth / 4, 4, pageHeight - bandHeight, pageHeight) !=
+      MappedInputManager::RowTouch::Tap) {
+    return;
+  }
+  const char* resume = nullptr;
+  const auto labels = directButtonLabels(resume);
+  const char* tapped = column == 0 ? labels.btn1 : column == 1 ? labels.btn2 : column == 2 ? labels.btn3 : labels.btn4;
+  haptic_feedback::touchAction();
+  if (tapped == resume) {
+    resumeBook();
+  } else if (tapped == tr(STR_LIBRARY)) {
+    onLibraryOpen();
+  } else if (tapped == tr(STR_BINDERY)) {
+    onBinderyOpen();
+  } else if (tapped == tr(STR_SETTINGS_TITLE)) {
+    onSettingsOpen();
+  }
+}
+
+// What the front buttons leave out: the file browser, the library slot
+// (Plugins or OPDS) and File Transfer.
+void HomeActivity::openMoreMenu() {
+  moreItems.clear();
+  std::vector<std::string> options;
+  options.reserve(3);
+  moreItems.reserve(3);
+  options.emplace_back(tr(STR_BROWSE_FILES));
+  moreItems.push_back(HomeMenuItem::FILE_BROWSER);
+  if (hasLibrarySlot()) {
+    options.emplace_back(hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
+    moreItems.push_back(HomeMenuItem::OPDS_BROWSER);
+  }
+  options.emplace_back(tr(STR_FILE_TRANSFER));
+  moreItems.push_back(HomeMenuItem::FILE_TRANSFER);
+  morePopup.show(StrId::STR_MORE, options, 0, [this](const int index) {
+    if (index >= 0 && index < static_cast<int>(moreItems.size())) openMenuItem(moreItems[static_cast<size_t>(index)]);
+  });
+  requestUpdate();
 }
 
 void HomeActivity::onRecentBookSelected(const std::string& path) { activityManager.goToReader(path); }

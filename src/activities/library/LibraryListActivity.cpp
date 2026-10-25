@@ -27,10 +27,13 @@
 #include "components/icons/search32.h"
 #include "fontIds.h"
 #include "util/BookCacheUtils.h"
+#include "util/ReadingStats.h"
 
 namespace fui = freeink::ui;
 
 namespace {
+// Reading bar under a grid cover (metrics.libraryGridProgress).
+constexpr int PROGRESS_HEIGHT = 8;
 constexpr int SIDE_PADDING = 12;
 
 // Side clearance for the footer text in the panel's bottom corners.
@@ -1061,7 +1064,12 @@ void LibraryListActivity::buildHeader(UiScreen& screen) {
                                                header);
   fui::header(screen.frame(), band, header);
   if (themedTitle) {
-    GUI.drawHeaderTitleRow(renderer, Rect{band.x, band.y, band.width, band.height}, title, nullptr, trailingReserve);
+    // The book count rides on the right of the title row (not while searching).
+    char count[24] = "";
+    if (!degraded && query.empty() && bookRowCount() > 0) {
+      snprintf(count, sizeof(count), tr(STR_HOME_BOOKS_FORMAT), bookRowCount());
+    }
+    GUI.drawHeaderTitleRow(renderer, Rect{band.x, band.y, band.width, band.height}, title, count, trailingReserve);
   }
 }
 
@@ -1117,8 +1125,10 @@ void LibraryListActivity::buildGrid(UiScreen& screen) {
   // 2:3 slot. Thumbs are scaled to cover their 0.6 box, so a 2:3 cover comes
   // out exactly this wide; wider art is cropped, narrower art is centered.
   const int coverW = coverH * 2 / 3;
-  const int rowHeight =
-      coverH + LABEL_GAP + renderer.getLineHeight(UI_10_FONT_ID) + AUTHOR_GAP + renderer.getLineHeight(SMALL_FONT_ID);
+  // Title and author, or (libraryGridProgress) a small title over the progress bar.
+  const int rowHeight = metrics.libraryGridProgress ? coverH + LABEL_GAP + 2 * renderer.getLineHeight(SMALL_FONT_ID)
+                                                    : coverH + LABEL_GAP + renderer.getLineHeight(UI_10_FONT_ID) +
+                                                          AUTHOR_GAP + renderer.getLineHeight(SMALL_FONT_ID);
   const auto body = screen.body();
   // Columns use the tab bar's slot geometry (buildTabBar: full screen width
   // inset by the side padding, equal slots split by tabSpacing), so each
@@ -1163,6 +1173,7 @@ void LibraryListActivity::buildGrid(UiScreen& screen) {
   if (winTitles.size() < cap) winTitles.resize(cap);
   if (winAuthors.size() < cap) winAuthors.resize(cap);
   if (winCovers.size() < cap) winCovers.resize(cap);
+  if (winPercents.size() < cap) winPercents.resize(cap);
   std::string path;
   path.reserve(128);
   for (int slot = 0; slot < page && top + slot < count; slot++) {
@@ -1170,7 +1181,11 @@ void LibraryListActivity::buildGrid(UiScreen& screen) {
     rowTextFor(entry, winTitles[static_cast<size_t>(slot)], winAuthors[static_cast<size_t>(slot)]);
     std::string& cover = winCovers[static_cast<size_t>(slot)];
     cover.clear();
+    winPercents[static_cast<size_t>(slot)] = -1;
     if (bookPathFor(entry, path)) {
+      if (metrics.libraryGridProgress) {
+        winPercents[static_cast<size_t>(slot)] = static_cast<int8_t>(reading_stats::bookPercent(path));
+      }
       cover = bookThumbPath(path, coverH);
       if (!cover.empty() && !Storage.exists(cover.c_str())) cover.clear();
     }
@@ -1269,6 +1284,27 @@ void LibraryListActivity::paintGridCell(const fui::Rect cover, const int entry) 
   constexpr int LABEL_GAP = 6;
   constexpr int AUTHOR_GAP = -2;  // the UI font's line box carries enough leading
   const int titleY = cover.y + cover.height + LABEL_GAP;
+  if (UITheme::getInstance().getMetrics().libraryGridProgress) {
+    // Small title (bold on the selected book) over its reading progress.
+    const auto style = entry == gridSelected ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+    const std::string label = renderer.truncatedText(SMALL_FONT_ID, title.c_str(), cover.width, style);
+    renderer.drawText(SMALL_FONT_ID, cover.x, titleY, label.c_str(), true, style);
+    // The second line holds the bar, or "New" for a book never opened.
+    const int lineY = titleY + renderer.getLineHeight(SMALL_FONT_ID);
+    const int percent = winPercents[static_cast<size_t>(slot)];
+    if (percent < 0) {
+      renderer.drawText(SMALL_FONT_ID, cover.x, lineY, tr(STR_QUIRE_NEW), true);
+      return;
+    }
+    const int barY = lineY + (renderer.getLineHeight(SMALL_FONT_ID) - PROGRESS_HEIGHT) / 2;
+    const int fill = cover.width * percent / 100;
+    if (fill > 0) {
+      renderer.fillRoundedRect(cover.x, barY, std::max(fill, PROGRESS_HEIGHT), PROGRESS_HEIGHT, PROGRESS_HEIGHT / 2,
+                               Color::Black);
+    }
+    renderer.drawRoundedRect(cover.x, barY, cover.width, PROGRESS_HEIGHT, 2, PROGRESS_HEIGHT / 2, true);
+    return;
+  }
   const std::string label = renderer.truncatedText(UI_10_FONT_ID, title.c_str(), cover.width);
   renderer.drawText(UI_10_FONT_ID, cover.x, titleY, label.c_str(), true);
   if (author.empty()) return;

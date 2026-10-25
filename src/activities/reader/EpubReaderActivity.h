@@ -61,6 +61,8 @@ class EpubReaderActivity final : public ReaderActivity {
   bool recentsEntryRemoved = false;
   unsigned long bookmarkMessageTime = 0UL;
   bool pendingReadFolderMove = false;
+  // The end of the book was counted in the reading stats (once per open).
+  bool finishedRecorded = false;
 
   // Toolbar reader menu (SETTINGS.readerMenuStyle == READER_MENU_TOOLBAR): drawn
   // over the page instead of pushing the full-screen list menu. Select opens the
@@ -160,6 +162,10 @@ class EpubReaderActivity final : public ReaderActivity {
   static constexpr unsigned long BUILD_POPUP_DEADLINE_MS = 1000;
   bool buildPopupPending = false;
   void showBuildPopup(GfxRenderer& renderer, int& pagesUntilFullRefresh);
+  // Indexing feedback: the theme's full book-opening page until the first
+  // page is on screen, the indexing popup after that.
+  void showIndexing();
+  bool firstPageShown = false;
   bool applyDeferredReposition();
   void clearDeferredReposition();
   void rememberCurrentContentOffset();

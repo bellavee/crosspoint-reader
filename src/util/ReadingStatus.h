@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+#include "util/ReadingStats.h"
+
 // What the CrossBind home card shows beside the cover: the featured book's
 // chapter and progress, the last finished Bindery library sync, and the last
 // KOReader Sync result for that book. Loaded once per home entry
@@ -19,8 +21,10 @@ namespace reading_status {
 enum class KosyncKind : uint8_t { None = 0, Pulled = 1, Sent = 2, Same = 3 };
 
 struct Snapshot {
-  std::string chapter;  // TOC title at the saved position, empty if unknown
-  int percent = -1;     // saved book progress, -1 if unknown
+  std::string chapter;    // TOC title at the saved position, empty if unknown
+  int chapterNumber = 0;  // its 1-based TOC position, 0 if unknown
+  int chapterCount = 0;
+  int percent = -1;  // saved book progress, -1 if unknown
 
   bool librarySynced = false;  // a Bindery run has finished at least once
   int64_t librarySyncedAt = 0;
@@ -29,6 +33,8 @@ struct Snapshot {
   KosyncKind kosync = KosyncKind::None;
   std::string kosyncDevice;  // remote device for Pulled / Same
   int64_t kosyncAt = 0;
+
+  reading_stats::Summary stats;  // reading time and finished books (Quire)
 };
 
 // Reloads the snapshot; an empty path loads only the library record.

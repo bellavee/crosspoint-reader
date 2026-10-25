@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <functional>
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"
+#include "fontIds.h"
 
 // Modal option picker drawn over the current screen (no clear) via
 // fui::optionDialog. Touch hit-testing is the SDK's InteractionBuffer: each
@@ -240,11 +242,41 @@ class OptionPopup {
     props.buttonHeight =
         fui::clampI16(target.lineHeight(fui::GfxRendererTarget::FONT_BODY) + metrics.optionPopupSelectionVPadding * 2);
 
+    // Formal two-choice dialog (Quire): a caps caption, the subject in the
+    // serif, left-aligned text and the two choices side by side, over a
+    // dimmed screen. Captions in scripts with diacritics keep their case.
+    const bool formal = metrics.dialogFormal && count == 2 && (!title.empty() || !headline.empty());
+    std::string caption;
+    if (formal) {
+      caption = title;
+      if (std::none_of(caption.begin(), caption.end(),
+                       [](const char c) { return static_cast<unsigned char>(c) >= 0x80; })) {
+        for (auto& c : caption) c = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+      }
+      target.setFont(fui::GfxRendererTarget::FONT_TITLE, SERIF_12_FONT_ID);
+      props.title = caption.empty() ? nullptr : caption.c_str();
+      props.titleText.font = fui::GfxRendererTarget::FONT_LABEL;
+      props.titleText.bold = false;
+      props.titleText.align = fui::TextAlign::Left;
+      props.headlineText.font = fui::GfxRendererTarget::FONT_TITLE;
+      props.headlineText.align = fui::TextAlign::Left;
+      props.messageText.align = fui::TextAlign::Left;
+      props.verticalOptions = false;
+      props.dimBackground = true;
+      props.buttonHeight = 52;
+      props.buttonStyles = fui::defaultButtonStyles();
+      props.buttonStyles.normal.border = fui::Paint::solid(fui::Color::Black);
+      props.buttonStyles.normal.borderWidth = 2;
+      props.buttonStyles.focused = props.buttonStyles.selected;
+      fui::setStyleRadius(props.buttonStyles, static_cast<uint8_t>(metrics.popupCornerRadius));
+    }
+
     // Fixed fraction of the screen, clamped by the theme's side margins; the
     // old max-text-width sizing is gone, long labels wrap inside the buttons.
     const fui::Rect screen = device.screen();
-    const int16_t width =
-        fui::clampI16(std::min<int>(screen.width * 3 / 4, screen.width - metrics.optionPopupDialogSideMargin * 2));
+    const int16_t width = formal ? fui::clampI16(screen.width - 64)
+                                 : fui::clampI16(std::min<int>(screen.width * 3 / 4,
+                                                               screen.width - metrics.optionPopupDialogSideMargin * 2));
     const int16_t height = fui::clampI16(fui::optionDialogHeight(target, props, width), 0, screen.height);
     const fui::Rect dialogRect = fui::centeredRect(screen, fui::Size{width, height});
 

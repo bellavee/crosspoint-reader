@@ -210,6 +210,10 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                            "removeReadBooksFromRecents", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_MOVE_FINISHED_TO_READ, &CrossPointSettings::moveFinishedToReadFolder,
                            "moveFinishedToReadFolder", StrId::STR_CAT_SYSTEM));
+  emit(SettingInfo::Enum(StrId::STR_READING_GOAL, &CrossPointSettings::readingGoal,
+                         {StrId::STR_STATE_OFF, StrId::STR_READING_GOAL_12, StrId::STR_READING_GOAL_24,
+                          StrId::STR_READING_GOAL_36, StrId::STR_READING_GOAL_52},
+                         "readingGoal", StrId::STR_CAT_SYSTEM));
 
   // OPDS download folder: persisted + web-exposed, but category-less so it
   // is hidden from the on-device Settings screen (edited via OPDS UI).

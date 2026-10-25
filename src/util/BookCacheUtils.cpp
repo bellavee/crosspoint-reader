@@ -36,6 +36,20 @@ std::string bookThumbPath(const std::string& path, const int height) {
   return prefix + std::to_string(std::hash<std::string>{}(path)) + "/thumb_" + std::to_string(height) + ".bmp";
 }
 
+std::string bookCacheDir(const std::string& path) {
+  // Must match the cachePath expressions in Epub.cpp and Xtc.h; TXT and
+  // Markdown open through Epub, so they share its prefix.
+  const char* prefix = nullptr;
+  if (FsHelpers::hasReflowableBookExtension(path)) {
+    prefix = "/.crosspoint/epub_";
+  } else if (FsHelpers::hasXtcExtension(path)) {
+    prefix = "/.crosspoint/xtc_";
+  } else {
+    return {};
+  }
+  return prefix + std::to_string(std::hash<std::string>{}(path));
+}
+
 void clearBookCache(const std::string& path) {
   if (FsHelpers::hasReflowableBookExtension(path)) {
     Epub(path, "/.crosspoint").clearCache();

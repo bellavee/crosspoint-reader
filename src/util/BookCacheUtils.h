@@ -13,5 +13,9 @@ bool isBookCacheDirectoryName(const char* name);
 // formats. Derives the same cache key as the Epub/Xtc constructors without
 // building a parser object; the file may not exist.
 std::string bookThumbPath(const std::string& path, int height);
+
+// The book's cache folder (EPUB, TXT/Markdown or XTC), empty for other
+// formats. Same cache key as the Epub/Xtc constructors, no parser built.
+std::string bookCacheDir(const std::string& path);
 // Delete a local book and its local clipping state after the file is removed.
 bool removeBookFile(const std::string& path);

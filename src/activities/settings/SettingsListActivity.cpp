@@ -48,9 +48,11 @@ void SettingsListActivity::loop() {
 // Rebuilds row labels; call when entering and after a section returns (the
 // UI language may have changed).
 void SettingsListActivity::rebuildRows() {
+  const bool hints = UITheme::getInstance().getMetrics().settingsSectionHints;
   for (size_t i = 0; i < SETTINGS_SECTION_COUNT; ++i) {
     auto& item = rowItems_[i];
     item.label = I18N.get(SETTINGS_SECTION_TITLES[i]);
+    item.subtitle = hints ? I18N.get(SETTINGS_SECTION_HINTS[i]) : nullptr;
     item.icon = fui::bitmapFromIcon(*SECTION_ICONS[i]);
     item.actionValue = static_cast<int16_t>(i);
   }

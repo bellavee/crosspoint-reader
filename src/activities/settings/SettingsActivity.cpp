@@ -69,7 +69,8 @@ bool showOnDevice(const SettingInfo& setting) {
 SettingsSection sectionFor(const SettingInfo& setting) {
   if (setting.valuePtr == &CrossPointSettings::libraryUseMetadata ||
       setting.valuePtr == &CrossPointSettings::removeReadBooksFromRecents ||
-      setting.valuePtr == &CrossPointSettings::moveFinishedToReadFolder) {
+      setting.valuePtr == &CrossPointSettings::moveFinishedToReadFolder ||
+      setting.valuePtr == &CrossPointSettings::readingGoal) {
     return SettingsSection::Library;
   }
   if (setting.valuePtr == &CrossPointSettings::sleepTimeoutMinutes) return SettingsSection::Display;

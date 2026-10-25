@@ -7,6 +7,7 @@
 #include "RecentBooksStore.h"
 #include "activities/Activity.h"
 #include "components/CoverGridHomeUi.h"
+#include "components/OptionPopup.h"
 #include "util/ButtonNavigator.h"
 
 struct Rect;
@@ -73,8 +74,19 @@ class HomeActivity final : public Activity {
   void onOpdsBrowserOpen();
   void onBinderyOpen();
   void onPluginsOpen();
+  void openMenuItem(HomeMenuItem item);
+
+  // Direct-button home (metrics.homeDirectButtons): no cursor, the front
+  // buttons are the menu and the side buttons open the rest in a popup.
+  OptionPopup morePopup;
+  std::vector<HomeMenuItem> moreItems;
+  void loopDirectButtons();
+  void openMoreMenu();
+  // The four front-button actions in Back, Confirm, Left, Right order.
+  MappedInputManager::Labels directButtonLabels(const char*& resume) const;
 
   int getMenuItemCount() const;
+  void renderMenu(const Rect& content, int pageHeight);
   bool storeCoverBuffer();    // Store frame buffer for cover image
   bool restoreCoverBuffer();  // Restore frame buffer from stored cover
   void freeCoverBuffer();     // Free the stored cover buffer

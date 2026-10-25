@@ -138,6 +138,25 @@ struct ThemeMetrics {
   // Library shows books as a cover grid, one column under each tab, instead
   // of a list. Cover size: UITheme::libraryCoverHeight().
   bool libraryCoverGrid = false;
+  // Grid cells show the title and a reading progress bar ("New" for unopened
+  // books) instead of title and author.
+  bool libraryGridProgress = false;
+  // Home has no cursor: the four front buttons run Resume, Library, Bindery
+  // and Settings directly, the side buttons open the remaining entries.
+  bool homeDirectButtons = false;
+  // Settings section rows carry a one-line summary under their title.
+  bool settingsSectionHints = false;
+  // Two-option dialogs read like a printed form: caption, serif headline,
+  // left-aligned text and the two choices side by side over a dimmed screen.
+  bool dialogFormal = false;
+};
+
+// What a theme's book-opening screen shows while a book is being indexed.
+struct BookOpening {
+  const char* title = nullptr;
+  const char* author = nullptr;
+  std::string coverPath;  // thumb BMP, may not exist
+  const char* status = nullptr;
 };
 
 enum UIIcon {
@@ -254,6 +273,12 @@ class BaseTheme {
   virtual void fillBatteryIcon(const GfxRenderer& renderer, Rect rect, uint16_t percentage) const;
   virtual void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
                                const char* btn4) const;
+  // As drawButtonHints, with `primary` (0-3, the slot in btn order) marked as
+  // the main action. Themes without a primary style ignore it.
+  virtual void drawButtonHintsPrimary(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
+                                      const char* btn4, int /*primary*/) const {
+    drawButtonHints(renderer, btn1, btn2, btn3, btn4);
+  }
   // Shared by every theme's drawButtonHints(): centres a hint label in its box,
   // wrapping to two lines rather than overflowing when it's too wide to fit.
   static void drawHintLabel(const GfxRenderer& renderer, int fontId, const char* label, int x, int boxWidth, int boxTop,
@@ -322,6 +347,12 @@ class BaseTheme {
   // Thumb generation height for home covers; 0 means use metrics.homeCoverHeight.
   // Themes with slots wider than 0.6 aspect override this so covers still fill.
   virtual int homeCoverThumbHeight(const GfxRenderer&) const { return 0; }
+  // Part of the home tile kept as a snapshot between repaints (only the slow
+  // cover read needs it). Default: the whole tile.
+  virtual Rect homeCoverSnapshotRect(const GfxRenderer&, const Rect tile) const { return tile; }
+  // Full-screen "opening this book" page in place of the indexing popup.
+  // False = the theme has none; the caller shows drawPopup instead.
+  virtual bool drawBookOpening(const GfxRenderer&, const BookOpening&) const { return false; }
 
   // Shared constants and helpers for battery drawing (used by all themes)
   static constexpr int batteryPercentSpacing = 4;

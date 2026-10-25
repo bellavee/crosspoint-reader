@@ -43,6 +43,7 @@ bool writeJson(const char* path, const JsonDocument& doc) {
 
 void load(const std::string& bookPath) {
   snapshot = Snapshot{};
+  snapshot.stats = reading_stats::summary();
 
   JsonDocument library;
   if (readJson(LIBRARY_PATH, library)) {
@@ -52,7 +53,7 @@ void load(const std::string& bookPath) {
   }
 
   if (bookPath.empty()) return;
-  snapshot.percent = loadBookProgress(bookPath, &snapshot.chapter);
+  snapshot.percent = loadBookProgress(bookPath, &snapshot.chapter, &snapshot.chapterNumber, &snapshot.chapterCount);
 
   JsonDocument kosync;
   if (readJson(KOSYNC_PATH, kosync)) {

@@ -198,6 +198,8 @@ class LibraryListActivity final : public UiTabListActivity {
   // (-1 while the tabs have focus) for the painter, and the column count for
   // row moves.
   std::vector<std::string> winCovers;
+  // Reading percent per cell (metrics.libraryGridProgress), -1 = never opened.
+  std::vector<int8_t> winPercents;
   int gridFirst = 0;
   int gridSelected = -1;
   int gridColumns = 3;

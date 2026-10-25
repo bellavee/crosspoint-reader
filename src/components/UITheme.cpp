@@ -17,6 +17,7 @@
 #include "components/themes/crossbind/CrossBindTheme.h"
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
+#include "components/themes/quire/QuireTheme.h"
 #include "components/themes/roundedraff/RoundedRaffTheme.h"
 
 UITheme UITheme::instance;
@@ -73,6 +74,17 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       }
       currentTheme = std::move(theme);
       currentMetrics = &CrossBindMetrics::values;
+      break;
+    }
+    case CrossPointSettings::UI_THEME::QUIRE: {
+      LOG_DBG("UI", "Using Quire theme");
+      auto theme = makeUniqueNoThrow<QuireTheme>();
+      if (!theme) {
+        LOG_ERR("UI", "OOM: Quire theme");
+        return;
+      }
+      currentTheme = std::move(theme);
+      currentMetrics = &QuireMetrics::values;
       break;
     }
     case CrossPointSettings::UI_THEME::LYRA_3_COVERS:
