@@ -50,33 +50,29 @@ ARABIC_INTERVALS=(
   --additional-intervals 0xFE80,0xFEFC  # Presentation Forms-B: core Arabic + Lam-Alef
 )
 
+# UI text is Noto Sans (bellasekai fork; upstream uses Ubuntu, whose headers
+# stay in builtinFonts/ for the host tests). Noto Sans covers Vietnamese
+# itself, so only the Hebrew and Arabic cuts are stacked behind it. The
+# notosansui_ prefix keeps these apart from the reader's notosans_12 faces.
 for size in ${UI_FONT_SIZES[@]}; do
   for style in ${UI_FONT_STYLES[@]}; do
-    font_name="ubuntu_${size}_$(echo $style | tr '[:upper:]' '[:lower:]')"
-    font_path="../builtinFonts/source/Ubuntu/Ubuntu-${style}.ttf"
-    latin_fallback_path="../builtinFonts/source/NotoSans/NotoSans-${style}.ttf"
+    font_name="notosansui_${size}_$(echo $style | tr '[:upper:]' '[:lower:]')"
+    font_path="../builtinFonts/source/NotoSans/NotoSans-${style}.ttf"
     hebrew_path="../builtinFonts/source/NotoSansHebrew/NotoSansHebrew-${style}.ttf"
     arabic_path="../builtinFonts/source/NotoSansArabic/NotoSansArabic-${style}.ttf"
-    # Ubuntu lacks the Latin Extended Additional block (U+1EA0-U+1EF9) used for
-    # Vietnamese tone marks. Append a Vietnamese-only Ubuntu cut so those glyphs
-    # are filled from it while every glyph Ubuntu already has stays unchanged
-    # (fontstack is ordered by descending priority).
-    viet_path="../builtinFonts/source/Ubuntu/Ubuntu-Vietnamese-${style}.ttf"
     output_path="../builtinFonts/${font_name}.h"
-    python fontconvert.py $font_name $size $font_path $latin_fallback_path $hebrew_path $arabic_path $viet_path \
+    python fontconvert.py $font_name $size $font_path $hebrew_path $arabic_path \
       --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > $output_path
     echo "Generated $output_path"
   done
 done
 
-# The small UI face is Ubuntu too, so UI text stays in one family at every size.
-python fontconvert.py ubuntu_8_regular 8 \
-  ../builtinFonts/source/Ubuntu/Ubuntu-Regular.ttf \
+# The small UI face is Noto Sans too, so UI text stays in one family at every size.
+python fontconvert.py notosansui_8_regular 8 \
   ../builtinFonts/source/NotoSans/NotoSans-Regular.ttf \
   ../builtinFonts/source/NotoSansHebrew/NotoSansHebrew-Regular.ttf \
   ../builtinFonts/source/NotoSansArabic/NotoSansArabic-Regular.ttf \
-  ../builtinFonts/source/Ubuntu/Ubuntu-Vietnamese-Regular.ttf \
-  --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > ../builtinFonts/ubuntu_8_regular.h
+  --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > ../builtinFonts/notosansui_8_regular.h
 
 # Serif UI faces for the CrossBind theme (Noto Serif is otherwise an optional
 # SD font): 10pt italic for the chapter line, 12pt regular + italic for book

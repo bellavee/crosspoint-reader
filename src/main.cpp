@@ -108,7 +108,7 @@ EpdFontFamily notosans18FontFamily(&notosans18RegularFont, &notosans18BoldFont, 
 
 #endif  // OMIT_FONTS
 
-EpdFont smallFont(&ubuntu_8_regular);
+EpdFont smallFont(&notosansui_8_regular);
 EpdFontFamily smallFontFamily(&smallFont);
 
 // Serif UI faces for the CrossBind theme. The 10 and 18 pt families are
@@ -121,12 +121,12 @@ EpdFontFamily serif12FontFamily(&serif12RegularFont, nullptr, &serif12ItalicFont
 EpdFont serif18ItalicFont(&notoserif_18_italic);
 EpdFontFamily serif18FontFamily(&serif18ItalicFont);
 
-EpdFont ui10RegularFont(&ubuntu_10_regular);
-EpdFont ui10BoldFont(&ubuntu_10_bold);
+EpdFont ui10RegularFont(&notosansui_10_regular);
+EpdFont ui10BoldFont(&notosansui_10_bold);
 EpdFontFamily ui10FontFamily(&ui10RegularFont, &ui10BoldFont);
 
-EpdFont ui12RegularFont(&ubuntu_12_regular);
-EpdFont ui12BoldFont(&ubuntu_12_bold);
+EpdFont ui12RegularFont(&notosansui_12_regular);
+EpdFont ui12BoldFont(&notosansui_12_bold);
 EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
 // Definitions for SilentRestart.h. RTC_NOINIT survives ESP.restart() but not power loss.
