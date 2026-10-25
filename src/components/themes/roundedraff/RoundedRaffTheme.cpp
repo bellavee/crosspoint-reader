@@ -66,7 +66,7 @@ void RoundedRaffTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
     coverWidth = RoundedRaffMetrics::values.homeCoverHeight * 0.6;
   }
   const int imgY = tileY + (tileHeight - RoundedRaffMetrics::values.homeCoverHeight) / 2;
-  const int tileX = RoundedRaffMetrics::values.contentSidePadding;
+  const int tileX = rect.x + RoundedRaffMetrics::values.contentSidePadding;
 
   // Draw book card regardless, fill with message based on `hasContinueReading`
   // Draw cover image as background if available (inside the box)
@@ -144,7 +144,7 @@ int RoundedRaffTheme::getMenuRowHeight(const GfxRenderer& renderer) const {
 void RoundedRaffTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                       const std::function<std::string(int index)>& buttonLabel,
                                       const std::function<UIIcon(int index)>& rowIcon,
-                              const std::function<std::string(int index)>&) const {
+                                      const std::function<std::string(int index)>&) const {
   (void)rowIcon;
   const int sidePadding = RoundedRaffMetrics::values.contentSidePadding;
   const int rowX = rect.x + sidePadding;

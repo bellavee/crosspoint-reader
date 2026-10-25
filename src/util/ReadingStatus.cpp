@@ -103,7 +103,7 @@ void recordKosync(const std::string& bookPath, const KosyncKind kind, const std:
 }
 
 int64_t nowUtc() {
-  struct tm local {};
+  struct tm local{};
   if (!halClock.localTime(local)) return 0;
   // mktime reads the struct as local time under the TZ halClock applies.
   const int64_t utc = static_cast<int64_t>(mktime(&local));
@@ -113,10 +113,10 @@ int64_t nowUtc() {
 std::string formatWhen(const int64_t utc) {
   if (utc < MIN_VALID_UTC) return {};
   const time_t when = static_cast<time_t>(utc);
-  struct tm then {};
+  struct tm then{};
   localtime_r(&when, &then);
 
-  struct tm now {};
+  struct tm now{};
   const bool sameDay = halClock.localTime(now) && now.tm_year == then.tm_year && now.tm_yday == then.tm_yday;
   char text[8];
   if (sameDay) {

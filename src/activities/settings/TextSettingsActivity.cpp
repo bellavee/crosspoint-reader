@@ -24,12 +24,11 @@ namespace {
 // Tab labels for Font | Size | Layout | Style.
 constexpr StrId TAB_NAME_IDS[] = {StrId::STR_FONT, StrId::STR_SIZE, StrId::STR_LAYOUT, StrId::STR_STYLE};
 
-constexpr StrId LAYOUT_ROW_NAME_IDS[] = {StrId::STR_LINE_SPACING,      StrId::STR_WORD_SPACING,
-                                         StrId::STR_CHARACTER_SPACING, StrId::STR_EXTRA_SPACING,
-                                         StrId::STR_FIRST_LINE_INDENT, StrId::STR_ALIGNMENT,
-                                         StrId::STR_SCREEN_MARGIN};
-constexpr StrId STYLE_ROW_NAME_IDS[] = {StrId::STR_FOCUS_READING, StrId::STR_HYPHENATION, StrId::STR_EMBEDDED_STYLE,
-                                        StrId::STR_TEXT_AA};
+constexpr StrId LAYOUT_ROW_NAME_IDS[] = {
+    StrId::STR_LINE_SPACING,          StrId::STR_WORD_SPACING, StrId::STR_CHARACTER_SPACING, StrId::STR_EXTRA_SPACING,
+    StrId::STR_PARAGRAPH_INDENTATION, StrId::STR_ALIGNMENT,    StrId::STR_SCREEN_MARGIN};
+constexpr StrId STYLE_ROW_NAME_IDS[] = {StrId::STR_FOCUS_READING, StrId::STR_HYPHENATION_NO_PREVIEW,
+                                        StrId::STR_EMBEDDED_STYLE_NO_PREVIEW, StrId::STR_TEXT_AA_NO_PREVIEW};
 
 int findCurrentFontIndex(const SdCardFontRegistry* registry, const char* sdFontFamilyName, uint8_t fontFamily) {
   if (sdFontFamilyName[0] != '\0' && registry) {
@@ -46,8 +45,6 @@ int findCurrentFontIndex(const SdCardFontRegistry* registry, const char* sdFontF
 }
 
 constexpr StrId PARA_SPACING_IDS[] = {StrId::STR_STATE_OFF, StrId::STR_STATE_ON, StrId::STR_PARA_SPACING_HALF};
-constexpr StrId INDENT_IDS[] = {StrId::STR_INDENT_BOOK, StrId::STR_STATE_OFF, StrId::STR_INDENT_1EM,
-                                StrId::STR_INDENT_1_5EM, StrId::STR_INDENT_2EM};
 constexpr StrId LINE_SPACING_IDS[] = {StrId::STR_TIGHT, StrId::STR_NORMAL, StrId::STR_RELAXED, StrId::STR_WIDE,
                                       StrId::STR_EXTRA_WIDE};
 constexpr StrId WORD_SPACING_IDS[] = {StrId::STR_SPACING_50_PERCENT,  StrId::STR_SPACING_75_PERCENT,
@@ -78,14 +75,14 @@ void TextSettingsActivity::onEnter() {
   UiTabListActivity::onEnter();
 
   metrics_ = UITheme::getInstance().getMetrics();
-  afterHeader = metrics_.topPadding + metrics_.headerHeight + metrics_.verticalSpacing;
-  bottomReserved = metrics_.buttonHintsHeight + metrics_.verticalSpacing;
-  usableHeight = renderer.getScreenHeight() - afterHeader - bottomReserved;
+  const Rect safeArea = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+  const int safeBottom = safeArea.y + safeArea.height;
+  afterHeader = safeArea.y + metrics_.topPadding + metrics_.headerHeight + metrics_.verticalSpacing;
+  const int usableHeight = safeBottom - afterHeader - metrics_.verticalSpacing;
   previewHeight = usableHeight * metrics_.previewHeightPercent / 100;
 
   fonts_.clear();
   fonts_.reserve(CrossPointSettings::BUILTIN_FONT_COUNT + (registry_ ? registry_->getFamilyCount() : 0));
-  fonts_.push_back({I18N.get(StrId::STR_NOTO_SERIF), true, static_cast<uint8_t>(CrossPointSettings::NOTOSERIF)});
   fonts_.push_back({I18N.get(StrId::STR_NOTO_SANS), true, static_cast<uint8_t>(CrossPointSettings::NOTOSANS)});
   if (registry_) {
     const auto& families = registry_->getFamilies();
@@ -210,12 +207,12 @@ bool TextSettingsActivity::handleButtons() {
 }
 
 void TextSettingsActivity::buildScreen(UiScreen& screen) {
-  // Content sits below the preview pane (render() draws header + preview
-  // directly) and above the caption band + button hints.
+  const Rect safeArea = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   const int tabTop = afterHeader + previewHeight;
-  const int captionHeight = renderer.getTextHeight(UI_10_FONT_ID) + metrics_.verticalSpacing;
-  screen.setContentMarginFromScreen(
-      fui::Insets{static_cast<int16_t>(tabTop), 0, static_cast<int16_t>(bottomReserved + captionHeight), 0});
+  const int rightInset = renderer.getScreenWidth() - (safeArea.x + safeArea.width);
+  const int bottomInset = renderer.getScreenHeight() - (safeArea.y + safeArea.height);
+  screen.setContentMarginFromScreen(fui::Insets{static_cast<int16_t>(tabTop), static_cast<int16_t>(rightInset),
+                                                static_cast<int16_t>(bottomInset), static_cast<int16_t>(safeArea.x)});
 
   buildTabBar(screen);
 
@@ -235,13 +232,13 @@ void TextSettingsActivity::buildScreen(UiScreen& screen) {
       case Tab::Layout:
         rowValues_[i] = layoutValueText(i);
         break;
-      case Tab::Style:
-        rowValues_[i] = styleValueText(i);
-        break;
       default:
         break;
     }
     rowItems_[i].value = rowValues_[i].empty() ? nullptr : rowValues_[i].c_str();
+    if (tab_ == Tab::Style) {
+      GUI.setCheckboxRow(rowItems_[i], styleRowChecked(i));
+    }
   }
 
   fui::ListProps props;
@@ -273,9 +270,7 @@ const char* TextSettingsActivity::confirmLabelText() const {
 }
 
 void TextSettingsActivity::drawChrome() {
-  const auto pageWidth = renderer.getScreenWidth();
-
-  GUI.drawHeader(renderer, Rect{0, metrics_.topPadding, pageWidth, metrics_.headerHeight}, tr(STR_TEXT_SETTINGS));
+  GUI.drawHeader(renderer, UITheme::getInstance().getHeaderRect(renderer, true, false), tr(STR_TEXT_SETTINGS));
 
   const char* familyName = (currentFamilyIndex_ >= 0 && currentFamilyIndex_ < static_cast<int>(fonts_.size()))
                                ? fonts_[currentFamilyIndex_].name.c_str()
@@ -283,17 +278,22 @@ void TextSettingsActivity::drawChrome() {
   const char* sizeName = (currentSizeIndex_ >= 0 && currentSizeIndex_ < static_cast<int>(sizes_.size()))
                              ? sizes_[currentSizeIndex_].name.c_str()
                              : "";
-  textsettings::renderPreview(renderer, previewLayout_, metrics_.previewPadding, metrics_.verticalSpacing, afterHeader,
-                              previewHeight, familyName, sizeName);
+  char labelBuf[128];
+  snprintf(labelBuf, sizeof(labelBuf), "%s \"%s, %s\"", tr(STR_PREVIEW), familyName, sizeName);
+  const Rect safeArea = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
+  const Rect previewBounds{safeArea.x, afterHeader, safeArea.width, previewHeight};
+  const auto [savedX, savedY, savedWidth, savedHeight] = renderer.getClipRect();
+  const int clipLeft = std::max(previewBounds.x, savedX);
+  const int clipTop = std::max(previewBounds.y, savedY);
+  const int clipRight = std::min(previewBounds.x + previewBounds.width, savedX + savedWidth);
+  const int clipBottom = std::min(previewBounds.y + previewBounds.height, savedY + savedHeight);
+  renderer.setClipRect(clipLeft, clipTop, std::max(0, clipRight - clipLeft), std::max(0, clipBottom - clipTop));
+  textsettings::renderPreview(renderer, previewLayout_, metrics_.previewPadding, metrics_.verticalSpacing,
+                              previewBounds, labelBuf);
+  renderer.setClipRect(savedX, savedY, savedWidth, savedHeight);
 }
 
 void TextSettingsActivity::drawFooter() {
-  if (focusedRowHasNoPreview()) {
-    const int captionHeight = renderer.getTextHeight(UI_10_FONT_ID) + metrics_.verticalSpacing;
-    const int capY = afterHeader + usableHeight - captionHeight + metrics_.verticalSpacing;
-    renderer.drawText(UI_10_FONT_ID, metrics_.previewPadding, capY, tr(STR_NOT_IN_PREVIEW));
-  }
-
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), confirmLabelText(), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }
@@ -390,14 +390,18 @@ void TextSettingsActivity::confirmLayoutRow(int row) {
                         });
       requestUpdate();
       break;
-    case LayoutRow::Indent:
-      optionPopup_.show(StrId::STR_FIRST_LINE_INDENT, INDENT_IDS, static_cast<int>(std::size(INDENT_IDS)),
-                        SETTINGS.paragraphIndent, [](int idx) {
-                          SETTINGS.paragraphIndent = static_cast<uint8_t>(idx);
-                          SETTINGS.saveToFile();
-                        });
+    case LayoutRow::ParaIndentation: {
+      std::vector<std::string> options;
+      options.reserve(6);
+      options.push_back(tr(STR_STATE_OFF));
+      for (int spaces = 1; spaces <= 5; ++spaces) options.push_back(std::to_string(spaces));
+      optionPopup_.show(StrId::STR_PARAGRAPH_INDENTATION, options, SETTINGS.paragraphIndentSpaces, [](int idx) {
+        SETTINGS.paragraphIndentSpaces = static_cast<uint8_t>(idx);
+        SETTINGS.saveToFile();
+      });
       requestUpdate();
       break;
+    }
     case LayoutRow::LineSpacing:
       optionPopup_.show(StrId::STR_LINE_SPACING, LINE_SPACING_IDS, static_cast<int>(std::size(LINE_SPACING_IDS)),
                         SETTINGS.lineSpacing, [](int idx) {
@@ -461,9 +465,9 @@ std::string TextSettingsActivity::layoutValueText(int row) const {
       const uint8_t v = SETTINGS.extraParagraphSpacing;
       return v < std::size(PARA_SPACING_IDS) ? I18N.get(PARA_SPACING_IDS[v]) : tr(STR_STATE_OFF);
     }
-    case LayoutRow::Indent: {
-      const uint8_t v = SETTINGS.paragraphIndent;
-      return v < std::size(INDENT_IDS) ? I18N.get(INDENT_IDS[v]) : tr(STR_INDENT_BOOK);
+    case LayoutRow::ParaIndentation: {
+      const int spaces = std::clamp<int>(SETTINGS.paragraphIndentSpaces, 0, 5);
+      return spaces == 0 ? tr(STR_STATE_OFF) : std::to_string(spaces);
     }
     case LayoutRow::Alignment: {
       const uint8_t v = SETTINGS.paragraphAlignment;
@@ -506,28 +510,20 @@ void TextSettingsActivity::confirmStyleRow(int row) {
   requestUpdate();
 }
 
-std::string TextSettingsActivity::styleValueText(int row) const {
+bool TextSettingsActivity::styleRowChecked(int row) const {
   switch (static_cast<StyleRow>(row)) {
     case StyleRow::FocusReading:
-      return SETTINGS.focusReadingEnabled ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+      return SETTINGS.focusReadingEnabled;
     case StyleRow::Hyphenation:
-      return SETTINGS.hyphenationEnabled ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+      return SETTINGS.hyphenationEnabled;
     case StyleRow::EmbeddedStyle:
-      return SETTINGS.embeddedStyle ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+      return SETTINGS.embeddedStyle;
     case StyleRow::AntiAliasing:
-      return SETTINGS.textAntiAliasing ? tr(STR_STATE_ON) : tr(STR_STATE_OFF);
+      return SETTINGS.textAntiAliasing;
 
     default:
-      return "";
+      return false;
   }
-}
-
-// Only Focus Reading shows in the preview (bold prefixes); the other Style rows
-// have no distinct preview.
-bool TextSettingsActivity::focusedRowHasNoPreview() const {
-  if (ringPos() == 0 || tab_ != Tab::Style) return false;
-  const StyleRow row = static_cast<StyleRow>(ringPos() - 1);
-  return row == StyleRow::Hyphenation || row == StyleRow::EmbeddedStyle || row == StyleRow::AntiAliasing;
 }
 
 void TextSettingsActivity::switchTab(const int direction) {

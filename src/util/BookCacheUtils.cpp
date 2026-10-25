@@ -3,10 +3,11 @@
 #include <Epub.h>
 #include <FsHelpers.h>
 #include <Logging.h>
-#include <Txt.h>
 #include <Xtc.h>
 
 #include <functional>
+
+#include "ClippingStore.h"
 
 bool isBookCacheDirectoryName(const char* name) {
   if (!name) {
@@ -36,14 +37,18 @@ std::string bookThumbPath(const std::string& path, const int height) {
 }
 
 void clearBookCache(const std::string& path) {
-  if (FsHelpers::hasEpubExtension(path)) {
+  if (FsHelpers::hasReflowableBookExtension(path)) {
     Epub(path, "/.crosspoint").clearCache();
   } else if (FsHelpers::hasXtcExtension(path)) {
     Xtc(path, "/.crosspoint").clearCache();
-  } else if (FsHelpers::hasTxtExtension(path)) {
-    Txt(path, "/.crosspoint").clearCache();
   } else {
     return;
   }
   LOG_DBG("BookCache", "Done checking metadata cache for: %s", path.c_str());
+}
+
+bool removeBookFile(const std::string& path) {
+  if (!Storage.remove(path.c_str())) return false;
+  clearBookCache(path);
+  return ClippingStore::deleteForFilePath(path, "epub");
 }

@@ -57,7 +57,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .progressBarMarginTop = 1,
                                  .statusBarHorizontalMargin = 5,
                                  .statusBarVerticalMargin = 19,
-                                 .keyboardKeyHeight = 36,
+                                 .keyboardKeyHeight = 56,
                                  .keyboardKeySpacing = 10,
                                  .keyboardCenteredText = false,
                                  .keyboardVerticalOffset = 0,
@@ -100,7 +100,7 @@ class RoundedRaffTheme : public BaseTheme {
   void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                       const std::function<std::string(int index)>& buttonLabel,
                       const std::function<UIIcon(int index)>& rowIcon,
-                              const std::function<std::string(int index)>& rowValue = nullptr) const override;
+                      const std::function<std::string(int index)>& rowValue = nullptr) const override;
   void drawTextField(const GfxRenderer& renderer, Rect rect, int textWidth, bool cursorMode = false,
                      int contentStartX = 0, int contentWidth = 0) const override;
   void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,

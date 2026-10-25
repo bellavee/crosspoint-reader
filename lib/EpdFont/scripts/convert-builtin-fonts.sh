@@ -5,18 +5,7 @@ set -e
 cd "$(dirname "$0")"
 
 READER_FONT_STYLES=("Regular" "Italic" "Bold" "BoldItalic")
-NOTOSERIF_FONT_SIZES=(12 14 16 18)
 NOTOSANS_FONT_SIZES=(12 14 16 18)
-
-for size in ${NOTOSERIF_FONT_SIZES[@]}; do
-  for style in ${READER_FONT_STYLES[@]}; do
-    font_name="notoserif_${size}_$(echo $style | tr '[:upper:]' '[:lower:]')"
-    font_path="../builtinFonts/source/NotoSerif/NotoSerif-${style}.ttf"
-    output_path="../builtinFonts/${font_name}.h"
-    python fontconvert.py $font_name $size $font_path --2bit --compress --pnum --zopfli > $output_path
-    echo "Generated $output_path"
-  done
-done
 
 for size in ${NOTOSANS_FONT_SIZES[@]}; do
   for style in ${READER_FONT_STYLES[@]}; do
@@ -65,6 +54,7 @@ for size in ${UI_FONT_SIZES[@]}; do
   for style in ${UI_FONT_STYLES[@]}; do
     font_name="ubuntu_${size}_$(echo $style | tr '[:upper:]' '[:lower:]')"
     font_path="../builtinFonts/source/Ubuntu/Ubuntu-${style}.ttf"
+    latin_fallback_path="../builtinFonts/source/NotoSans/NotoSans-${style}.ttf"
     hebrew_path="../builtinFonts/source/NotoSansHebrew/NotoSansHebrew-${style}.ttf"
     arabic_path="../builtinFonts/source/NotoSansArabic/NotoSansArabic-${style}.ttf"
     # Ubuntu lacks the Latin Extended Additional block (U+1EA0-U+1EF9) used for
@@ -73,21 +63,34 @@ for size in ${UI_FONT_SIZES[@]}; do
     # (fontstack is ordered by descending priority).
     viet_path="../builtinFonts/source/Ubuntu/Ubuntu-Vietnamese-${style}.ttf"
     output_path="../builtinFonts/${font_name}.h"
-    python fontconvert.py $font_name $size $font_path $hebrew_path $arabic_path $viet_path \
+    python fontconvert.py $font_name $size $font_path $latin_fallback_path $hebrew_path $arabic_path $viet_path \
       --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > $output_path
     echo "Generated $output_path"
   done
 done
 
-python fontconvert.py notosans_8_regular 8 \
+# The small UI face is Ubuntu too, so UI text stays in one family at every size.
+python fontconvert.py ubuntu_8_regular 8 \
+  ../builtinFonts/source/Ubuntu/Ubuntu-Regular.ttf \
   ../builtinFonts/source/NotoSans/NotoSans-Regular.ttf \
   ../builtinFonts/source/NotoSansHebrew/NotoSansHebrew-Regular.ttf \
   ../builtinFonts/source/NotoSansArabic/NotoSansArabic-Regular.ttf \
-  --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > ../builtinFonts/notosans_8_regular.h
+  ../builtinFonts/source/Ubuntu/Ubuntu-Vietnamese-Regular.ttf \
+  --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > ../builtinFonts/ubuntu_8_regular.h
 
-# Small italic serif for secondary lines in UI themes (CrossBind's chapter
-# line under the book title); italic only, so it is a one-face family.
-python fontconvert.py notoserif_10_italic 10 ../builtinFonts/source/NotoSerif/NotoSerif-Italic.ttf   --2bit --compress --pnum --zopfli > ../builtinFonts/notoserif_10_italic.h
+# Serif UI faces for the CrossBind theme (Noto Serif is otherwise an optional
+# SD font): 10pt italic for the chapter line, 12pt regular + italic for book
+# titles, 18pt italic for screen titles. Only the faces the theme draws.
+for face in 10_italic 12_regular 12_italic 18_italic; do
+  size="${face%%_*}"
+  style="${face#*_}"
+  case "$style" in
+    italic) ttf=Italic ;;
+    *) ttf=Regular ;;
+  esac
+  python fontconvert.py "notoserif_${face}" "$size" "../builtinFonts/source/NotoSerif/NotoSerif-${ttf}.ttf"     --2bit --compress --pnum --zopfli > "../builtinFonts/notoserif_${face}.h"
+  echo "Generated ../builtinFonts/notoserif_${face}.h"
+done
 
 echo ""
 echo "Running compression verification..."

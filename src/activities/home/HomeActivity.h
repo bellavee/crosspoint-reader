@@ -19,6 +19,10 @@ class HomeActivity final : public Activity {
   bool recentsLoaded = false;
   bool firstRenderDone = false;
   bool hasOpdsServers = false;
+  bool hasPlugins = false;
+  // The home "library" slot (index 2) shows Plugins when any plugin is
+  // installed, otherwise OPDS. The index converters gate on its presence.
+  bool hasLibrarySlot() const { return hasPlugins || hasOpdsServers; }
   bool hasContinueReading = false;
   bool coverRendered = false;      // Track if cover has been rendered once
   bool coverBufferStored = false;  // Track if cover buffer is stored
@@ -36,11 +40,12 @@ class HomeActivity final : public Activity {
   const bool cleanInitialRefresh;
 
   // Menu rows below the recent books, in display order. Compact themes drop
-  // OPDS Browser and File Transfer; OPDS also needs a configured server.
-  static std::vector<HomeMenuItem> menuOrder(bool hasOpdsUrl, bool compact) {
+  // the library slot and File Transfer; the slot (OPDS_BROWSER: Plugins when
+  // any are installed, else OPDS) also needs something to show.
+  static std::vector<HomeMenuItem> menuOrder(bool librarySlot, bool compact) {
     std::vector<HomeMenuItem> items = {HomeMenuItem::FILE_BROWSER, HomeMenuItem::LIBRARY, HomeMenuItem::BINDERY};
     if (!compact) {
-      if (hasOpdsUrl) items.push_back(HomeMenuItem::OPDS_BROWSER);
+      if (librarySlot) items.push_back(HomeMenuItem::OPDS_BROWSER);
       items.push_back(HomeMenuItem::FILE_TRANSFER);
     }
     items.push_back(HomeMenuItem::SETTINGS_MENU);
@@ -48,25 +53,26 @@ class HomeActivity final : public Activity {
   }
 
   // Convert HomeMenuItem to menu index (used in onEnter); a hidden item maps to the first row.
-  static int menuItemToIndex(HomeMenuItem item, bool hasOpdsUrl, bool compact) {
-    const auto items = menuOrder(hasOpdsUrl, compact);
+  static int menuItemToIndex(HomeMenuItem item, bool librarySlot, bool compact) {
+    const auto items = menuOrder(librarySlot, compact);
     const auto it = std::find(items.begin(), items.end(), item);
     return it == items.end() ? 0 : static_cast<int>(it - items.begin());
   }
 
   // Convert menu index to HomeMenuItem (used in loop)
-  static HomeMenuItem indexToMenuItem(int idx, bool hasOpdsUrl, bool compact) {
-    const auto items = menuOrder(hasOpdsUrl, compact);
+  static HomeMenuItem indexToMenuItem(int idx, bool librarySlot, bool compact) {
+    const auto items = menuOrder(librarySlot, compact);
     return idx >= 0 && idx < static_cast<int>(items.size()) ? items[idx] : HomeMenuItem::NONE;
   }
   static bool compactMenu();
-  void onSelectBook(const std::string& path);
+  void onRecentBookSelected(const std::string& path);
   void onFileBrowserOpen();
   void onLibraryOpen();
   void onSettingsOpen();
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
   void onBinderyOpen();
+  void onPluginsOpen();
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image

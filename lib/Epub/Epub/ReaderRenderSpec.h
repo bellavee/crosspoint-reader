@@ -9,17 +9,6 @@ enum ParagraphSpacingMode : uint8_t {
   PARAGRAPH_SPACING_COUNT
 };
 
-// First-line indent modes, stored in CrossPointSettings::paragraphIndent. Negative (hanging)
-// CSS indents are kept in every mode.
-enum ParagraphIndentMode : uint8_t {
-  PARAGRAPH_INDENT_BOOK = 0,  // CSS text-indent, else three spaces
-  PARAGRAPH_INDENT_OFF = 1,
-  PARAGRAPH_INDENT_1EM = 2,
-  PARAGRAPH_INDENT_1_5EM = 3,
-  PARAGRAPH_INDENT_2EM = 4,
-  PARAGRAPH_INDENT_COUNT
-};
-
 // The resolved text-rendering configuration a reader hands to the layout
 // engine. Section-cache validation keys on every field: a section file built
 // with a different spec is discarded and rebuilt.
@@ -33,7 +22,7 @@ struct ReaderRenderSpec {
   int fontId = 0;
   float lineCompression = 1.0f;
   uint8_t extraParagraphSpacing = PARAGRAPH_SPACING_OFF;
-  uint8_t paragraphIndent = PARAGRAPH_INDENT_BOOK;
+  uint8_t paragraphIndentSpaces = 2;
   int8_t characterSpacing = 0;
   uint8_t wordSpacingPercent = 100;
   uint8_t paragraphAlignment = 0;
@@ -44,3 +33,26 @@ struct ReaderRenderSpec {
   uint8_t imageRendering = 0;
   bool focusReadingEnabled = false;
 };
+
+// Stable signature for clipping anchors. Page-local word ordinals are valid
+// only for the exact layout that produced them.
+inline uint32_t readerRenderSpecSignature(const ReaderRenderSpec& spec) {
+  uint32_t signature = 2166136261U;
+  const auto mix = [&signature](const uint32_t value) {
+    signature ^= value;
+    signature *= 16777619U;
+  };
+  mix(static_cast<uint32_t>(spec.fontId));
+  mix(static_cast<uint32_t>(spec.lineCompression * 1000.0f));
+  mix(spec.extraParagraphSpacing);
+  mix(static_cast<uint8_t>(spec.characterSpacing));
+  mix(spec.wordSpacingPercent);
+  mix(spec.paragraphAlignment);
+  mix(spec.viewportWidth);
+  mix(spec.viewportHeight);
+  mix(spec.hyphenationEnabled);
+  mix(spec.embeddedStyle);
+  mix(spec.imageRendering);
+  mix(spec.focusReadingEnabled);
+  return signature == 0 ? 1 : signature;
+}

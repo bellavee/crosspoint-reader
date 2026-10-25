@@ -6,11 +6,10 @@ class GfxRenderer;
 
 // CrossBind: the bellasekai / Bindery look. Hairlines and 3px radii, a home
 // card with the current book's cover, title, chapter, progress and sync
-// status, a flat four-row menu with no separators, and italic serif titles.
-// Two variants differ only in the selection fill: light gray (dithered, ghosts
-// less) or solid black.
+// status, a flat four-row menu with no separators, italic serif titles, and a
+// solid black selection fill.
 namespace CrossBindMetrics {
-constexpr ThemeMetrics gray = [] {
+constexpr ThemeMetrics values = [] {
   ThemeMetrics v = LyraMetrics::values;
   v.headerHeight = 80;
   v.contentSidePadding = 22;
@@ -19,7 +18,7 @@ constexpr ThemeMetrics gray = [] {
   v.listRowRadius = 3;
   v.listInset = 22;
   v.listSidePadding = 14;
-  v.listSelectionStyle = 1;  // light pill
+  v.listSelectionStyle = 0;  // invert fill
   v.headerSidePadding = 22;
   v.headerUnderlineSize = 0;  // drawHeader draws its own hairline
   v.menuRowHeight = 68;
@@ -34,23 +33,14 @@ constexpr ThemeMetrics gray = [] {
   v.sheetRadius = 3;
   v.capsuleRadius = 3;
   v.homeCompactMenu = true;
-  v.listToggleSwitches = true;
   v.tabsUnderline = true;
   v.libraryCoverGrid = true;
-  return v;
-}();
-
-constexpr ThemeMetrics black = [] {
-  ThemeMetrics v = gray;
-  v.listSelectionStyle = 0;  // invert fill
   return v;
 }();
 }  // namespace CrossBindMetrics
 
 class CrossBindTheme : public LyraTheme {
  public:
-  explicit CrossBindTheme(bool blackSelection) : blackSelection(blackSelection) {}
-
   void drawHeader(const GfxRenderer& renderer, Rect rect, const char* title, const char* subtitle = nullptr,
                   bool backButton = true) const override;
   void drawButtonHints(GfxRenderer& renderer, const char* btn1, const char* btn2, const char* btn3,
@@ -68,8 +58,6 @@ class CrossBindTheme : public LyraTheme {
   bool hasHeaderTitleRow() const override { return true; }
 
  private:
-  const bool blackSelection;
-
   void drawStatusRow(const GfxRenderer& renderer, int x, int y, int width, int rowHeight, bool filled,
                      const char* label, const std::string& text, const std::string& when) const;
 };

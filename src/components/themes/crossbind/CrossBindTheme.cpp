@@ -51,6 +51,7 @@ const uint8_t* iconForName(UIIcon icon) {
     case UIIcon::Wifi:
       return WifiIcon;
     case UIIcon::Blocks:
+    case UIIcon::Plugins:
       return BlocksIcon;
     default:
       return nullptr;
@@ -105,7 +106,7 @@ bool CrossBindTheme::drawHeaderTitleRow(const GfxRenderer& renderer, Rect band, 
   const int right = band.x + band.width - metrics.headerSidePadding - rightReserve;
   const int rowTop = band.y + metrics.batteryBarHeight;
   const int centerY = rowTop + (band.y + band.height - rowTop) / 2;
-  constexpr int titleFont = NOTOSERIF_18_FONT_ID;
+  constexpr int titleFont = SERIF_18_FONT_ID;  // italic-only face
   constexpr int gap = 14;
 
   int labelX = right;
@@ -144,7 +145,7 @@ void CrossBindTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, co
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   constexpr int slotWidth = 106;
-  constexpr int stripHeight = CrossBindMetrics::gray.buttonHintsHeight;
+  constexpr int stripHeight = CrossBindMetrics::values.buttonHintsHeight;
   constexpr int narrowSlots[] = {25, 130, 245, 350};
   constexpr int wideSlots[] = {38, 154, 268, 384};
   const int* slots = pageWidth >= 528 ? wideSlots : narrowSlots;
@@ -182,12 +183,11 @@ void CrossBindTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
   for (int i = 0; i < buttonCount; ++i) {
     const int y = rect.y + i * (rowHeight + metrics.menuSpacing);
     const bool selected = i == selectedIndex;
-    // No separators: only the selected row gets a fill.
+    // No separators: only the selected row gets a fill, drawn in white on it.
     if (selected) {
-      renderer.fillRoundedRect(x, y, width, rowHeight, radius, blackSelection ? Color::Black : Color::LightGray);
+      renderer.fillRoundedRect(x, y, width, rowHeight, radius, Color::Black);
     }
-    const bool ink = !(selected && blackSelection);
-    const auto style = selected && !blackSelection ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+    const bool ink = !selected;
 
     int textX = x + 16;
     if (rowIcon != nullptr) {
@@ -210,9 +210,9 @@ void CrossBindTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int button
       }
     }
 
-    const std::string label = renderer.truncatedText(UI_12_FONT_ID, buttonLabel(i).c_str(), textRight - textX, style);
-    renderer.drawText(UI_12_FONT_ID, textX, y + (rowHeight - renderer.getLineHeight(UI_12_FONT_ID)) / 2,
-                      label.c_str(), ink, style);
+    const std::string label = renderer.truncatedText(UI_12_FONT_ID, buttonLabel(i).c_str(), textRight - textX);
+    renderer.drawText(UI_12_FONT_ID, textX, y + (rowHeight - renderer.getLineHeight(UI_12_FONT_ID)) / 2, label.c_str(),
+                      ink);
   }
 }
 
@@ -303,13 +303,13 @@ void CrossBindTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, const
   // gives up lines first when a long title leaves no room.
   const int textX = coverX + coverWidth + coverTextGap;
   const int textW = cardX + cardW - cardPadRight - textX;
-  constexpr int titleFont = NOTOSERIF_12_FONT_ID;
-  constexpr int chapterFont = CAPTION_FONT_ID;  // 10pt serif, italic-only face
+  constexpr int titleFont = SERIF_12_FONT_ID;
+  constexpr int chapterFont = SERIF_10_FONT_ID;  // italic-only face
   constexpr int barHeight = 5;
   const int barY = coverY + coverH - barHeight - 2;
   const int progressCenter = barY - 14;
-  const int textBottom = status.percent >= 0 ? progressCenter - renderer.getLineHeight(SMALL_FONT_ID) / 2 - 8
-                                             : coverY + coverH;
+  const int textBottom =
+      status.percent >= 0 ? progressCenter - renderer.getLineHeight(SMALL_FONT_ID) / 2 - 8 : coverY + coverH;
 
   int y = coverY;
   const int titleLineHeight = renderer.getLineHeight(titleFont);

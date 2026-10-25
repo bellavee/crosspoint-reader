@@ -158,13 +158,19 @@ bool FontDownloadActivity::internString(const char* text, StrRef& outRef) {
 }
 
 bool FontDownloadActivity::fetchAndParseManifest() {
+  if (auto* fcm = renderer.getFontCacheManager()) {
+    fcm->releaseSdFontCaches();
+  }
+  // Rescan installed families before any TLS or JSON buffers exist. The rescan
+  // frees and reallocates every registry entry, which fragments the heap if it
+  // runs while the manifest DOM and the catalog arena are live.
+  clearManifest();
+  fontInstaller_.refreshRegistry();
+
   // Download manifest to a temp file on SD card to avoid holding both
   // TLS buffers and the full JSON string in RAM simultaneously.
   static constexpr const char* MANIFEST_TMP = "/fonts_manifest.tmp";
 
-  if (auto* fcm = renderer.getFontCacheManager()) {
-    fcm->releaseSdFontCaches();
-  }
   if (ESP.getFreeHeap() < HttpDownloader::MIN_TLS_FREE_HEAP ||
       ESP.getMaxAllocHeap() < HttpDownloader::MIN_TLS_MAX_ALLOC) {
     LOG_ERR("FONT", "Low heap for manifest (%u free, %u max block)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
@@ -228,8 +234,6 @@ bool FontDownloadActivity::fetchAndParseManifest() {
 
   baseUrl_ = doc["baseUrl"] | "";
   downloadUrl_.reserve(baseUrl_.size() + 128);
-  clearManifest();
-  fontInstaller_.refreshRegistry();
 
   JsonArray groupsArr = doc["scriptGroups"].as<JsonArray>();
   JsonArray familiesArr = doc["families"].as<JsonArray>();
@@ -594,7 +598,7 @@ void FontDownloadActivity::downloadFamily(ManifestFamily& family) {
         // HTTP: the CRC check below (manifest fetched over TLS) covers
         // integrity, and skipping the second TLS session keeps the C3 heap out
         // of MEMORY_E territory.
-        &cancelRequested_, "", "", /*downgradeRedirectsToHttp=*/true);
+        &cancelRequested_, "", "", /*headers=*/{}, /*downgradeRedirectsToHttp=*/true);
 
     if (result == HttpDownloader::ABORTED) {
       fontInstaller_.deleteFamily(str(family.name));
@@ -836,9 +840,6 @@ void FontDownloadActivity::rebuildFamilyRowItems() {
         item.value = tr(STR_UPDATE_AVAILABLE);
       } else if (family.installed) {
         item.value = tr(STR_INSTALLED);
-        // Dimmed but still tappable (opens the delete prompt): visual-only
-        // disabled state, the row stays enabled for hit registration.
-        item.state = fui::StateDisabled;
       }
     }
     item.actionValue = static_cast<int16_t>(i);
@@ -942,7 +943,6 @@ void FontDownloadActivity::render(RenderLock&&) {
                  headerSubtitle);
 
   const auto lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-  const auto contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
   const auto centerY = (pageHeight - lineHeight) / 2;
 
   if (state_ == LOADING_MANIFEST) {
