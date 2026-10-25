@@ -1,5 +1,6 @@
 #include "LibraryListActivity.h"
 
+#include <Bitmap.h>
 #include <FreeInkUIIcon.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
@@ -104,6 +105,9 @@ void LibraryListActivity::onEnter() {
     LOG_ERR("LIB", "index was built without duplicate detection");
   }
   resolvePinned();
+  // The cover grid opens on the first book rather than the tab bar: a shelf
+  // is for picking a book, and Up reaches the tabs in one step.
+  if (gridMode() && bookRowCount() > 0) activeNav().requestSelection(1);
 
   // Entered while Confirm was still held (typical when launched from the home
   // menu): ignore its release, or we would open whatever sits at row 0.
@@ -190,22 +194,26 @@ void LibraryListActivity::refreshOverlap() {
   std::sort(overlapRows, overlapRows + overlapCount);
 }
 
+bool LibraryListActivity::bookPathFor(const int entry, std::string& path) {
+  path.clear();
+  if (entry < pinnedCount()) {
+    const auto& books = RECENT_BOOKS.getBooks();
+    if (entry < 0 || entry >= static_cast<int>(books.size())) return false;
+    path = books[static_cast<size_t>(entry)].path;
+    return true;
+  }
+  if (!index.isOpen()) return false;
+  const uint16_t ordinal = index.ordinalForRow(sortOrder, static_cast<uint16_t>(rowFor(entry)));
+  if (ordinal == 0xFFFF) return false;
+  library::ClixRecord record{};
+  return index.readRecord(ordinal, record) && index.readPath(record, path);
+}
+
 void LibraryListActivity::openSelectedBook() {
   std::string path;
-  if (selectedEntry() < pinnedCount()) {
-    const auto& books = RECENT_BOOKS.getBooks();
-    if (selectedEntry() >= static_cast<int>(books.size())) return;
-    path = books[static_cast<size_t>(selectedEntry())].path;
-  } else {
-    if (!index.isOpen()) return;
-    const uint16_t ordinal = index.ordinalForRow(sortOrder, static_cast<uint16_t>(rowFor(selectedEntry())));
-    if (ordinal == 0xFFFF) return;
-
-    library::ClixRecord record{};
-    if (!index.readRecord(ordinal, record) || !index.readPath(record, path)) {
-      LOG_ERR("LIB", "cannot resolve path for row %d", selectedEntry());
-      return;
-    }
+  if (!bookPathFor(selectedEntry(), path)) {
+    LOG_ERR("LIB", "cannot resolve path for row %d", selectedEntry());
+    return;
   }
   openBookByPath(path);
 }
@@ -767,7 +775,72 @@ bool LibraryListActivity::handleButtons() {
   return false;
 }
 
+void LibraryListActivity::navigateGrid() {
+  using Button = MappedInputManager::Button;
+  const int count = listCount();
+  if (count <= 0) return;
+  const int columns = std::max(1, gridColumns);
+  const bool tabs = tabsFocused();
+
+  // Front buttons: one cell, wrapping across rows; on the tab bar they switch
+  // tabs instead.
+  auto left = [this, tabs] {
+    if (tabs) {
+      if (!degraded) stepTab(-1);
+    } else if (ringPos() > 1) {
+      moveRingTo(ringPos() - 1);
+    }
+  };
+  auto right = [this, tabs, count] {
+    if (tabs) {
+      if (!degraded) stepTab(1);
+    } else if (ringPos() < count) {
+      moveRingTo(ringPos() + 1);
+    }
+  };
+  buttonNavigator.onRelease({Button::ScreenLeft}, left);
+  buttonNavigator.onRelease({Button::ScreenRight}, right);
+  buttonNavigator.onContinuous({Button::ScreenLeft}, left);
+  buttonNavigator.onContinuous({Button::ScreenRight}, right);
+
+  // Side buttons: one row. Up from the top row returns to the tab bar, Up on
+  // the tab bar opens Search (the list's Previous does the same); Down with
+  // no book straight below, but a shorter last row still to come, lands on
+  // the last book.
+  buttonNavigator.onRelease({Button::ScreenUp}, [this, tabs, columns] {
+    if (tabs) {
+      if (!degraded) openSearch();
+    } else if (selectedEntry() >= columns) {
+      moveRingTo(ringPos() - columns);
+    } else if (!degraded) {
+      moveRingTo(0);
+    }
+  });
+  buttonNavigator.onRelease({Button::ScreenDown}, [this, tabs, columns, count] {
+    if (tabs) {
+      moveRingTo(1);
+    } else if (selectedEntry() + columns < count) {
+      moveRingTo(ringPos() + columns);
+    } else if (selectedEntry() / columns < (count - 1) / columns) {
+      moveRingTo(count);
+    }
+  });
+  // Held side buttons flip whole pages.
+  buttonNavigator.onContinuous({Button::ScreenUp}, [this, tabs] {
+    if (tabs) return;
+    moveRingTo(std::max(0, selectedEntry() - activeNav().inputPageRows()) + 1);
+  });
+  buttonNavigator.onContinuous({Button::ScreenDown}, [this, tabs, count] {
+    if (tabs) return;
+    moveRingTo(std::min(count - 1, selectedEntry() + activeNav().inputPageRows()) + 1);
+  });
+}
+
 void LibraryListActivity::navigateButtons() {
+  if (gridMode()) {
+    navigateGrid();
+    return;
+  }
   const int count = listCount();
   auto& nav = activeNav();
   buttonNavigator.onNextRelease([this, count] {
@@ -943,11 +1016,19 @@ void LibraryListActivity::buildHeader(UiScreen& screen) {
     // unified band.
   }
   const auto frameRect = screen.frame().screen();
+  const Rect band{frameRect.x, metrics.topPadding, frameRect.width, metrics.headerHeight};
+  // Themes with their own title row (CrossBind) draw the title after the
+  // FreeInkUI band, clear of the trailing search button.
+  const int trailingReserve = degraded ? 0 : header.trailingSize;
+  const char* title = header.title;
+  const bool themedTitle = !mappedInput.hasTouch() && GUI.hasHeaderTitleRow();
+  if (themedTitle) header.title = nullptr;
   // Header and tabs share a screen-relative boundary, independent of bezel insets.
   fui::header(screen.frame(),
               fui::Rect{frameRect.x, static_cast<int16_t>(metrics.topPadding), frameRect.width,
                         static_cast<int16_t>(metrics.headerHeight)},
               header);
+  if (themedTitle) GUI.drawHeaderTitleRow(renderer, band, title, nullptr, trailingReserve);
 }
 
 void LibraryListActivity::buildScreen(UiScreen& screen) {
@@ -970,7 +1051,258 @@ void LibraryListActivity::buildScreen(UiScreen& screen) {
     screen.centeredText(message);
     return;
   }
-  buildRows(screen);
+  if (gridMode()) {
+    buildGrid(screen);
+  } else {
+    buildRows(screen);
+  }
+}
+
+bool LibraryListActivity::gridMode() const {
+  return UITheme::getInstance().getMetrics().libraryCoverGrid && !groupsCollapsed;
+}
+
+// One page of covers, one column under each tab. The viewport moves a whole
+// page at a time (a page-aligned top), so on e-ink the grid flips like a
+// shelf page instead of creeping up by a row per step. ListNav still owns the
+// selection, follow and swipe requests; its page size is the cell count.
+void LibraryListActivity::buildGrid(UiScreen& screen) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  constexpr int LABEL_GAP = 6;   // cover to title line (paintGridCell)
+  constexpr int AUTHOR_GAP = -2;  // title line to author line (paintGridCell)
+  constexpr int MIN_ROW_GAP = 4;
+  constexpr int MAX_ROW_GAP = 40;
+  // Room above the first row for the selection frame drawn around a cover.
+  constexpr int FRAME_ROOM = 4;
+
+  const int coverH = UITheme::getInstance().libraryCoverHeight(renderer);
+  // 2:3 slot. Thumbs are scaled to cover their 0.6 box, so a 2:3 cover comes
+  // out exactly this wide; wider art is cropped, narrower art is centered.
+  const int coverW = coverH * 2 / 3;
+  const int rowHeight = coverH + LABEL_GAP + renderer.getLineHeight(UI_10_FONT_ID) + AUTHOR_GAP +
+                        renderer.getLineHeight(SMALL_FONT_ID);
+  const auto body = screen.body();
+  // Columns use the tab bar's slot geometry (buildTabBar: full screen width
+  // inset by the side padding, equal slots split by tabSpacing), so each
+  // column of covers centers under its tab.
+  const auto frameRect = screen.frame().screen();
+  const int side = metrics.contentSidePadding;
+  const int columnGap = metrics.tabSpacing;
+  const fui::Rect rect{static_cast<int16_t>(frameRect.x + side), static_cast<int16_t>(body.y + FRAME_ROOM),
+                       static_cast<int16_t>(frameRect.width - 2 * side),
+                       static_cast<int16_t>(body.height - FRAME_ROOM)};
+  const int columns = TAB_SLOTS;
+  const int rows = std::max(1, (rect.height + MIN_ROW_GAP) / (rowHeight + MIN_ROW_GAP));
+  // Spread the leftover height between rows so the last row sits on the
+  // readout line rather than leaving a ragged gap at the bottom.
+  const int rowGap = rows > 1 ? std::min(MAX_ROW_GAP, (rect.height - rows * rowHeight) / (rows - 1)) : 0;
+  const int page = rows * columns;
+  const int count = listCount();
+
+  // Selection, follow and pending swipes through ListNav, measured in cells.
+  auto& nav = activeNav();
+  const bool follow = nav.followOnBuild.load();
+  const int previousTop = nav.top;
+  fui::ListProps viewport;
+  nav.syncToProps(fui::Rect{0, 0, 1, static_cast<int16_t>(page)}, 1, 0, count, viewport, 1);
+  const int lastPageTop = count > 0 ? ((count - 1) / page) * page : 0;
+  int top = nav.top;
+  if (follow && viewport.selectedIndex >= 0) {
+    top = (viewport.selectedIndex / page) * page;
+  } else if (top > previousTop) {
+    top = ((top + page - 1) / page) * page;  // a forward swipe lands on the next page
+  } else {
+    top = (top / page) * page;
+  }
+  top = std::clamp(top, 0, lastPageTop);
+  nav.followPending = false;
+  // Publishes the page size that holds and swipes step by.
+  nav.onListRendered(static_cast<uint16_t>(top), page, true);
+
+  // Materialize the page: text for every cell, and a thumb path only where a
+  // thumb at the grid's size already exists. Nothing is generated here.
+  const size_t cap = static_cast<size_t>(page);
+  if (winTitles.size() < cap) winTitles.resize(cap);
+  if (winAuthors.size() < cap) winAuthors.resize(cap);
+  if (winCovers.size() < cap) winCovers.resize(cap);
+  std::string path;
+  path.reserve(128);
+  for (int slot = 0; slot < page && top + slot < count; slot++) {
+    const int entry = top + slot;
+    rowTextFor(entry, winTitles[static_cast<size_t>(slot)], winAuthors[static_cast<size_t>(slot)]);
+    std::string& cover = winCovers[static_cast<size_t>(slot)];
+    cover.clear();
+    if (bookPathFor(entry, path)) {
+      cover = bookThumbPath(path, coverH);
+      if (!cover.empty() && !Storage.exists(cover.c_str())) cover.clear();
+    }
+  }
+
+  gridFirst = top;
+  gridSelected = viewport.selectedIndex;
+  gridColumns = columns;
+
+  gridProps.itemProvider = &LibraryListActivity::gridItemTrampoline;
+  gridProps.itemProviderUserData = this;
+  gridProps.coverPainter = &LibraryListActivity::gridCoverTrampoline;
+  gridProps.coverPainterUserData = this;
+  gridProps.count = static_cast<uint16_t>(count);
+  gridProps.topIndex = static_cast<uint16_t>(top);
+  gridProps.selectedIndex = static_cast<int16_t>(gridSelected);
+  gridProps.action = ACTION_ROW;
+  gridProps.inputMask = fui::InputTouch | fui::InputLongPress;
+  // The painter draws the cover, its label and the selection; the cell
+  // itself stays transparent.
+  gridProps.cellStyles = fui::plainStyles();
+  gridProps.columns = static_cast<uint8_t>(columns);
+  // Equal cells with the cover centered: the tab slot centers.
+  gridProps.columnLayout = fui::CoverGridColumnLayout::EqualWidth;
+  gridProps.cellInset = fui::Insets{};
+  // The SDK indicator would narrow the grid and pull the columns off the
+  // tabs; drawn in the right padding below instead.
+  gridProps.scrollIndicator = false;
+  gridProps.coverSize = fui::Size{static_cast<int16_t>(coverW), static_cast<int16_t>(coverH)};
+  gridProps.rowHeight = static_cast<int16_t>(rowHeight);
+  gridProps.gap = static_cast<int16_t>(columnGap);
+  gridProps.rowGap = static_cast<int16_t>(rowGap);
+  gridProps.labelHeight = 0;
+  gridProps.minTouchSize = screen.theme().minTouchSize;
+  fui::coverGrid(screen.frame(), rect, gridProps);
+  const int scrollWidth = metrics.listScrollWidth;
+  fui::drawListScrollIndicator(screen.target(),
+                               fui::Rect{static_cast<int16_t>(rect.x + rect.width + (side - scrollWidth) / 2), rect.y,
+                                         static_cast<int16_t>(scrollWidth), rect.height},
+                               static_cast<uint32_t>(count), static_cast<uint32_t>(page), static_cast<uint32_t>(top),
+                               static_cast<int16_t>(scrollWidth));
+  LOG_DBG("LIB", "grid tab=%d top=%d page=%d (%dx%d) count=%d", activeTabIndex, top, page, columns, rows, count);
+}
+
+fui::CoverGridItem LibraryListActivity::gridItemTrampoline(const uint16_t index, void*) {
+  // No title: the painter draws its own label under the cover.
+  return fui::coverGridItem(nullptr, index);
+}
+
+bool LibraryListActivity::gridCoverTrampoline(fui::DrawTarget&, const fui::Rect rect, const fui::CoverGridItem&,
+                                              const uint16_t index, void* user) {
+  static_cast<LibraryListActivity*>(user)->paintGridCell(rect, index);
+  return true;
+}
+
+// One cell: the cached cover, or a type tile when the book has no thumb at
+// this size; the title and author lines under it, left-aligned to the cover
+// and no wider than it;
+// and, when selected, a frame around the cover (the text stays plain).
+void LibraryListActivity::paintGridCell(const fui::Rect cover, const int entry) {
+  const int slot = entry - gridFirst;
+  if (slot < 0 || slot >= static_cast<int>(winTitles.size())) return;
+  const std::string& title = winTitles[static_cast<size_t>(slot)];
+  const std::string& author = winAuthors[static_cast<size_t>(slot)];
+  const std::string& coverPath = winCovers[static_cast<size_t>(slot)];
+  const int radius = UITheme::getInstance().getMetrics().controlRadius;
+
+  bool drawn = false;
+  if (!coverPath.empty()) {
+    HalFile file;
+    if (Storage.openFileForRead("LIB", coverPath, file)) {
+      Bitmap bitmap(file);
+      // A failed generation leaves an empty thumb behind; it fails here and
+      // falls through to the type tile.
+      if (bitmap.parseHeaders() == BmpReaderError::Ok && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
+        drawn = BaseTheme::drawCoverThumbFill(renderer, bitmap, Rect{cover.x, cover.y, cover.width, cover.height});
+      }
+      file.close();
+    }
+  }
+  if (drawn) {
+    renderer.drawRect(cover.x, cover.y, cover.width, cover.height, true);
+  } else {
+    renderer.drawRoundedRect(cover.x, cover.y, cover.width, cover.height, 1, radius, true);
+    paintTypeTile(cover, title, author);
+  }
+
+  if (entry == gridSelected) {
+    constexpr int FRAME_GAP = 4;
+    constexpr int FRAME_WIDTH = 3;
+    renderer.drawRoundedRect(cover.x - FRAME_GAP, cover.y - FRAME_GAP, cover.width + 2 * FRAME_GAP,
+                             cover.height + 2 * FRAME_GAP, FRAME_WIDTH, radius, true);
+  }
+
+  // Line positions match buildGrid's row height (LABEL_GAP, AUTHOR_GAP).
+  constexpr int LABEL_GAP = 6;
+  constexpr int AUTHOR_GAP = -2;  // the UI font's line box carries enough leading
+  const int titleY = cover.y + cover.height + LABEL_GAP;
+  const std::string label = renderer.truncatedText(UI_10_FONT_ID, title.c_str(), cover.width);
+  renderer.drawText(UI_10_FONT_ID, cover.x, titleY, label.c_str(), true);
+  if (author.empty()) return;
+  const int authorY = titleY + renderer.getLineHeight(UI_10_FONT_ID) + AUTHOR_GAP;
+  const std::string byline = renderer.truncatedText(SMALL_FONT_ID, author.c_str(), cover.width);
+  renderer.drawText(SMALL_FONT_ID, cover.x, authorY, byline.c_str(), true);
+}
+
+// A typeset cover, left-aligned like the lines under the grid's covers: the
+// title from the top-left corner, a short rule and the author anchored to the
+// bottom-left. Never cut: the title steps down through the italic serifs (12, then 10 pt) to the 8pt
+// sans until the whole text fits; only a title too long even for that is
+// ellipsized.
+void LibraryListActivity::paintTypeTile(const fui::Rect tile, const std::string& title,
+                                        const std::string& author) const {
+  // Safe margin, about a tenth of the cover width on every side (14px on
+  // X3, 13 on X4), so the type sits well inside the frame like a printed cover.
+  const int PAD = std::max(12, tile.width / 10);
+  constexpr int RULE_SPACE = 12;  // rule plus the space around it
+  constexpr int RULE_WIDTH = 16;
+  constexpr int MAX_LINES = 16;
+  struct TitleFont {
+    int id;
+    EpdFontFamily::Style style;
+  };
+  // CAPTION is an italic-only face, drawn with REGULAR.
+  constexpr TitleFont TITLE_FONTS[] = {{NOTOSERIF_12_FONT_ID, EpdFontFamily::ITALIC},
+                                       {CAPTION_FONT_ID, EpdFontFamily::REGULAR},
+                                       {SMALL_FONT_ID, EpdFontFamily::REGULAR}};
+  const int width = tile.width - 2 * PAD;
+  const int height = tile.height - 2 * PAD;
+  const int authorLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
+
+  auto authorLines = author.empty() ? std::vector<std::string>{}
+                                    : renderer.wrappedText(SMALL_FONT_ID, author.c_str(), width, MAX_LINES);
+  TitleFont titleFont = TITLE_FONTS[std::size(TITLE_FONTS) - 1];
+  std::vector<std::string> titleLines;
+  for (const TitleFont font : TITLE_FONTS) {
+    titleFont = font;
+    titleLines = renderer.wrappedText(font.id, title.c_str(), width, MAX_LINES, font.style);
+    const int needed = static_cast<int>(titleLines.size()) * renderer.getLineHeight(font.id) +
+                       (authorLines.empty() ? 0 : RULE_SPACE + static_cast<int>(authorLines.size()) * authorLineHeight);
+    if (needed <= height) break;
+  }
+  const int titleLineHeight = renderer.getLineHeight(titleFont.id);
+  // Still too tall at the smallest size: the author keeps up to two lines and
+  // the title takes what is left, ellipsized.
+  auto blockHeight = [&] {
+    return static_cast<int>(titleLines.size()) * titleLineHeight +
+           (authorLines.empty() ? 0 : RULE_SPACE + static_cast<int>(authorLines.size()) * authorLineHeight);
+  };
+  if (blockHeight() > height) {
+    if (authorLines.size() > 2) authorLines = renderer.wrappedText(SMALL_FONT_ID, author.c_str(), width, 2);
+    const int authorSpace = authorLines.empty() ? 0 : RULE_SPACE + static_cast<int>(authorLines.size()) * authorLineHeight;
+    const int titleMax = std::max(1, (height - authorSpace) / titleLineHeight);
+    titleLines = renderer.wrappedText(titleFont.id, title.c_str(), width, titleMax, titleFont.style);
+  }
+
+  const int x = tile.x + PAD;
+  int y = tile.y + PAD;
+  for (const auto& line : titleLines) {
+    renderer.drawText(titleFont.id, x, y, line.c_str(), true, titleFont.style);
+    y += titleLineHeight;
+  }
+  if (authorLines.empty()) return;
+  // The fit check above guarantees the author block clears the title.
+  y = tile.y + tile.height - PAD - static_cast<int>(authorLines.size()) * authorLineHeight;
+  renderer.drawLine(x, y - RULE_SPACE / 2, x + RULE_WIDTH, y - RULE_SPACE / 2, true);
+  for (const auto& line : authorLines) {
+    renderer.drawText(SMALL_FONT_ID, x, y, line.c_str(), true);
+    y += authorLineHeight;
+  }
 }
 
 // "12/69 books" at the bottom right: which book is selected, out of how many.
@@ -1032,7 +1364,10 @@ void LibraryListActivity::drawFooter() {
   const char* backLabel = backGoesHome ? tr(STR_HOME) : tr(STR_BACK);
   const char* confirmLabel = groupsCollapsed ? tr(STR_SELECT) : tr(STR_OPEN);
   const bool canSearch = tabsFocused() && !degraded;
-  const auto labels = mappedInput.mapLabels(backLabel, tabsFocused() ? tr(STR_TOGGLE) : confirmLabel,
-                                            canSearch ? tr(STR_SEARCH) : tr(STR_DIR_UP), tr(STR_DIR_DOWN));
+  const bool grid = gridMode();
+  const char* prevLabel = grid ? tr(STR_DIR_LEFT) : (canSearch ? tr(STR_SEARCH) : tr(STR_DIR_UP));
+  const char* nextLabel = grid ? tr(STR_DIR_RIGHT) : tr(STR_DIR_DOWN);
+  const auto labels =
+      mappedInput.mapLabels(backLabel, tabsFocused() ? tr(STR_TOGGLE) : confirmLabel, prevLabel, nextLabel);
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 }

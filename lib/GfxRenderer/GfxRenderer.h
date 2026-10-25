@@ -195,6 +195,13 @@ class GfxRenderer {
   // setFallbackFont maps a primary UI font id to an SD font id of the same size.
   void setFallbackFont(int primaryFontId, int fallbackFontId) { fallbackFontMap_[primaryFontId] = fallbackFontId; }
   void clearFallbackFonts() { fallbackFontMap_.clear(); }
+  // Drop only the mappings that route to `fallbackFontId` (its font is being
+  // freed); fallbacks owned by another SD font manager stay in place.
+  void clearFallbacksTo(int fallbackFontId) {
+    for (auto it = fallbackFontMap_.begin(); it != fallbackFontMap_.end();) {
+      it = it->second == fallbackFontId ? fallbackFontMap_.erase(it) : std::next(it);
+    }
+  }
   // Ensure SD card font glyph data is loaded for the given text. Called from layout code
   // (which holds a const GfxRenderer&) before measuring word widths. Safe to call on non-SD fonts (no-op).
   // styleMask: bitmask of styles to prepare (bit 0=regular, 1=bold, 2=italic, 3=bold-italic).
@@ -304,7 +311,8 @@ class GfxRenderer {
   void fillRoundedRect(int x, int y, int width, int height, int cornerRadius, bool roundTopLeft, bool roundTopRight,
                        bool roundBottomLeft, bool roundBottomRight, Color color) const;
   void drawImage(const uint8_t bitmap[], int x, int y, int width, int height) const;
-  void drawIcon(const uint8_t bitmap[], int x, int y, int size) const;
+  // black = false plots the icon's ink white (icons on a black selection).
+  void drawIcon(const uint8_t bitmap[], int x, int y, int size, bool black = true) const;
   bool drawBitmap(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight, float cropX = 0, float cropY = 0,
                   bool whiteAsTransparent = false) const;
   bool drawBitmap1Bit(const Bitmap& bitmap, int x, int y, int maxWidth, int maxHeight) const;

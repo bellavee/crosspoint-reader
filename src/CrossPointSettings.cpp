@@ -96,6 +96,10 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
   if (sdFontFamilyName[0] != '\0') {
     doc["sdFontFamilyName"] = sdFontFamilyName;
   }
+  // UI font family name — dynamic setting (registry-dependent), save manually
+  if (uiFontFamilyName[0] != '\0') {
+    doc["uiFontFamilyName"] = uiFontFamilyName;
+  }
   // Dictionary folder name — uses dynamic getter/setter in SettingsList, save manually
   if (dictionaryName[0] != '\0') {
     doc["dictionaryName"] = dictionaryName;
@@ -252,6 +256,8 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
   } else if (storedFontFamily >= BUILTIN_FONT_COUNT) {
     needsResave = true;
   }
+  // UI font family name — dynamic setting in SettingsList, load manually
+  copyToField(uiFontFamilyName, doc["uiFontFamilyName"] | "", sizeof(uiFontFamilyName));
   // Dictionary folder name — uses dynamic getter/setter in SettingsList, load manually
   copyToField(dictionaryName, doc["dictionaryName"] | "", sizeof(dictionaryName));
 

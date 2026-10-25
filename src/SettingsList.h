@@ -97,6 +97,52 @@ inline SettingInfo buildFontFamilySetting(const SdCardFontRegistry* registry) {
   return s;
 }
 
+// System (UI) font: the SD family that draws UI text the built-in UI fonts
+// lack (CJK titles, ...), chosen apart from the reading font. Option 0 keeps
+// the old coupling (the reading font doubles as the UI fallback). Only
+// pre-rasterized .cpfont families are offered: the UI fallback loads them at
+// the 8/10/12 pt UI sizes, which vector families cannot do on no-PSRAM boards.
+inline std::vector<std::string> uiFontFamilyNames(const SdCardFontRegistry& registry) {
+  std::vector<std::string> names;
+  const auto& families = registry.getFamilies();
+  names.reserve(families.size());
+  for (const auto& family : families) {
+    if (!family.vector) names.push_back(family.name);
+  }
+  return names;
+}
+
+inline SettingInfo buildUiFontSetting(const SdCardFontRegistry& registry) {
+  // Captured by copy: the lambdas outlive this call (see buildFontSizeSetting).
+  const std::vector<std::string> familyNames = uiFontFamilyNames(registry);
+  std::vector<std::string> labels;
+  labels.reserve(familyNames.size() + 1);
+  labels.push_back(I18N.get(StrId::STR_UI_FONT_FOLLOW_READER));
+  labels.insert(labels.end(), familyNames.begin(), familyNames.end());
+
+  SettingInfo s;
+  s.nameId = StrId::STR_UI_FONT;
+  s.type = SettingType::ENUM;
+  s.enumStringValues = std::move(labels);
+  s.key = "uiFontFamily";
+  s.category = StrId::STR_CAT_DISPLAY;
+  s.valueGetter = [familyNames]() -> uint8_t {
+    for (size_t i = 0; i < familyNames.size(); i++) {
+      if (familyNames[i] == SETTINGS.uiFontFamilyName) return static_cast<uint8_t>(i + 1);
+    }
+    return 0;
+  };
+  s.valueSetter = [familyNames](const uint8_t v) {
+    if (v == 0 || v > familyNames.size()) {
+      SETTINGS.uiFontFamilyName[0] = '\0';
+      return;
+    }
+    strncpy(SETTINGS.uiFontFamilyName, familyNames[v - 1].c_str(), sizeof(SETTINGS.uiFontFamilyName) - 1);
+    SETTINGS.uiFontFamilyName[sizeof(SETTINGS.uiFontFamilyName) - 1] = '\0';
+  };
+  return s;
+}
+
 // Build the font size setting dynamically: the options are the point sizes the
 // active family actually ships, so an SD family built at 10/12/14 offers three
 // sizes and a family built at 8..18 offers six. The selected point size persists
@@ -189,7 +235,8 @@ inline std::vector<StrId> buildLongPressMenuValues() {
 
 inline std::vector<StrId> homeThemeValues() {
   static constexpr StrId VALUES[] = {StrId::STR_THEME_CLASSIC, StrId::STR_THEME_LYRA, StrId::STR_THEME_LYRA_EXTENDED,
-                                     StrId::STR_THEME_ROUNDEDRAFF, StrId::STR_THEME_COVER_GRID};
+                                     StrId::STR_THEME_ROUNDEDRAFF, StrId::STR_THEME_CROSSBIND,
+                                     StrId::STR_THEME_CROSSBIND_BLACK, StrId::STR_THEME_COVER_GRID};
   const size_t count = UITheme::supportsCoverGrid() ? std::size(VALUES) : std::size(VALUES) - 1;
   return {VALUES, VALUES + count};
 }
@@ -549,6 +596,12 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     auto it = std::find_if(v.begin(), v.end(), [](const SettingInfo& s) { return s.nameId == StrId::STR_FONT_FAMILY; });
     if (it != v.end()) {
       *it = buildFontFamilySetting(registry);
+    }
+    // System font sits right after the UI theme, with the other look settings.
+    if (!uiFontFamilyNames(*registry).empty()) {
+      auto theme =
+          std::find_if(v.begin(), v.end(), [](const SettingInfo& s) { return s.nameId == StrId::STR_UI_THEME; });
+      if (theme != v.end()) v.insert(theme + 1, buildUiFontSetting(*registry));
     }
   }
   {

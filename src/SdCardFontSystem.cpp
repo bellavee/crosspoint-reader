@@ -7,6 +7,8 @@
 #include <TtfEpdFont.h>
 #include <esp_heap_caps.h>
 
+#include <algorithm>
+#include <cstring>
 #include <iterator>
 
 #include "CrossPointSettings.h"
@@ -64,6 +66,10 @@ constexpr UiFontSize kUiFontSizes[] = {
     {SMALL_FONT_ID, 8},
     {UI_10_FONT_ID, 10},
     {UI_12_FONT_ID, 12},
+    // Serif UI text (CrossBind's cover tiles and home card title). Same point
+    // sizes as above, so the SD files are shared, not loaded again.
+    {CAPTION_FONT_ID, 10},
+    {NOTOSERIF_12_FONT_ID, 12},
 };
 
 }  // namespace
@@ -105,6 +111,7 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
     }
   }
 
+  ensureUiFont(renderer);
   LOG_DBG("SDFS", "SD font system ready (%d families discovered)", registry_.getFamilyCount());
 }
 
@@ -118,7 +125,58 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
     LOG_DBG("SDFS", "Registry dirty — re-discovering fonts");
     registry_.discover();
   }
+  ensureReaderLoaded(renderer, registryWasDirty);
+  ensureUiFont(renderer, registryWasDirty);
+}
 
+const SdCardFontFamilyInfo* SdCardFontSystem::uiFontFamily() const {
+  if (SETTINGS.uiFontFamilyName[0] == '\0') return nullptr;
+  // The reading family already serves as the fallback; loading it twice would
+  // only collide on font ids.
+  if (strcmp(SETTINGS.uiFontFamilyName, SETTINGS.sdFontFamilyName) == 0) return nullptr;
+  const auto* family = registry_.findFamily(SETTINGS.uiFontFamilyName);
+  return family && !family->vector ? family : nullptr;
+}
+
+void SdCardFontSystem::ensureUiFont(GfxRenderer& renderer, const bool reload) {
+  const SdCardFontFamilyInfo* family = uiFontFamily();
+  if (!family) {
+    if (uiManager_.currentFamilyName().empty()) return;
+    // Back to the reading font as the UI fallback (unloadAll dropped the
+    // mappings to the UI family's fonts).
+    uiManager_.unloadAll(renderer);
+    if (!manager_.currentFamilyName().empty()) setupUiFallbacks(renderer);
+#if CROSSPOINT_VECTOR_FONTS
+    if (!ttfFamily_.empty()) setupTtfUiFallbacks(renderer);
+#endif
+    return;
+  }
+
+  if (reload || uiManager_.currentFamilyName() != family->name) uiManager_.unloadAll(renderer);
+  // Header + coverage intervals per size stay resident; glyphs stream from SD
+  // on demand, as for the reading font. Sizes already loaded are reused, so
+  // calling this again only re-points the fallbacks.
+  for (const auto& ui : kUiFontSizes) {
+    const int fontId = uiManager_.loadFamilyExtraSize(*family, renderer, ui.pointSize);
+    if (fontId != 0) {
+      renderer.setFallbackFont(ui.fontId, fontId);
+    } else {
+      LOG_DBG("SDFS", "No %u pt files in UI font %s", ui.pointSize, family->name.c_str());
+    }
+  }
+  LOG_DBG("SDFS", "UI font: %s", family->name.c_str());
+}
+
+void SdCardFontSystem::unloadAll(GfxRenderer& renderer) {
+  uiManager_.unloadAll(renderer);
+  manager_.unloadAll(renderer);
+#if CROSSPOINT_VECTOR_FONTS
+  unloadTtf(renderer);
+#endif
+  renderer.clearFallbackFonts();
+}
+
+void SdCardFontSystem::ensureReaderLoaded(GfxRenderer& renderer, const bool registryWasDirty) {
   const char* wantedFamily = SETTINGS.sdFontFamilyName;
 
 #if CROSSPOINT_VECTOR_FONTS
@@ -193,6 +251,9 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
 }
 
 void SdCardFontSystem::setupUiFallbacks(GfxRenderer& renderer) {
+  // A separately chosen UI font owns the fallbacks; the reading font then
+  // needs no UI sizes.
+  if (uiFontFamily()) return;
   const std::string& familyName = manager_.currentFamilyName();
   if (familyName.empty()) return;  // no SD family loaded — nothing to fall back to
 
@@ -382,7 +443,7 @@ void SdCardFontSystem::addTtfSources(TtfEpdFont& font) {
 }
 
 void SdCardFontSystem::setupTtfUiFallbacks(GfxRenderer& renderer) {
-  if (ttfFamily_.empty()) return;
+  if (ttfFamily_.empty() || uiFontFamily()) return;
   // Small caches: UI strings (titles/rows) are short. Each UI family is 4-style
   // but LAZY, so only the regular face is ever built for UI text — the bold/
   // italic faces cost nothing. All faces share the reader's sources (streamed
@@ -393,6 +454,12 @@ void SdCardFontSystem::setupTtfUiFallbacks(GfxRenderer& renderer) {
   // fallback (built-in bitmap UI fonts keep covering Latin UI text).
   static constexpr size_t kUiFallbackMinInternalHeap = 160 * 1024;
   for (const auto& ui : kUiFontSizes) {
+    // Several UI fonts share a point size; they share its fallback instance.
+    const int sharedId = computeTtfFontId((ttfFamily_ + "\x01ui").c_str(), ui.pointSize);
+    if (std::find(ttfUiIds_.begin(), ttfUiIds_.end(), sharedId) != ttfUiIds_.end()) {
+      renderer.setFallbackFont(ui.fontId, sharedId);
+      continue;
+    }
     if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) == 0) {
       const size_t internalFree = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
       if (internalFree < kUiFallbackMinInternalHeap) {

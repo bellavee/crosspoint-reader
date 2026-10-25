@@ -6,6 +6,8 @@
 #include <Txt.h>
 #include <Xtc.h>
 
+#include <functional>
+
 bool isBookCacheDirectoryName(const char* name) {
   if (!name) {
     return false;
@@ -18,6 +20,19 @@ bool isBookCacheDirectoryName(const char* name) {
   return strncmp(name, EPUB_PREFIX, std::size(EPUB_PREFIX) - 1) == 0 ||
          strncmp(name, TXT_PREFIX, std::size(TXT_PREFIX) - 1) == 0 ||
          strncmp(name, XTC_PREFIX, std::size(XTC_PREFIX) - 1) == 0;
+}
+
+std::string bookThumbPath(const std::string& path, const int height) {
+  // Must match the cachePath expressions in Epub.h and Xtc.h.
+  const char* prefix = nullptr;
+  if (FsHelpers::hasEpubExtension(path)) {
+    prefix = "/.crosspoint/epub_";
+  } else if (FsHelpers::hasXtcExtension(path)) {
+    prefix = "/.crosspoint/xtc_";
+  } else {
+    return {};
+  }
+  return prefix + std::to_string(std::hash<std::string>{}(path)) + "/thumb_" + std::to_string(height) + ".bmp";
 }
 
 void clearBookCache(const std::string& path) {

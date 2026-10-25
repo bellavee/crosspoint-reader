@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <functional>
 #include <vector>
 
@@ -34,34 +35,31 @@ class HomeActivity final : public Activity {
   const HomeMenuItem initialMenuItem;
   const bool cleanInitialRefresh;
 
-  // Convert HomeMenuItem to menu index (used in onEnter)
-  static int menuItemToIndex(HomeMenuItem item, bool hasOpdsUrl) {
-    int i = 0;
-    if (item == HomeMenuItem::FILE_BROWSER) return i;
-    ++i;
-    if (item == HomeMenuItem::LIBRARY) return i;
-    ++i;
-    if (item == HomeMenuItem::BINDERY) return i;
-    ++i;
-    if (item == HomeMenuItem::OPDS_BROWSER) return hasOpdsUrl ? i : 0;
-    if (hasOpdsUrl) ++i;
-    if (item == HomeMenuItem::FILE_TRANSFER) return i;
-    ++i;
-    if (item == HomeMenuItem::SETTINGS_MENU) return i;
-    return 0;
+  // Menu rows below the recent books, in display order. Compact themes drop
+  // OPDS Browser and File Transfer; OPDS also needs a configured server.
+  static std::vector<HomeMenuItem> menuOrder(bool hasOpdsUrl, bool compact) {
+    std::vector<HomeMenuItem> items = {HomeMenuItem::FILE_BROWSER, HomeMenuItem::LIBRARY, HomeMenuItem::BINDERY};
+    if (!compact) {
+      if (hasOpdsUrl) items.push_back(HomeMenuItem::OPDS_BROWSER);
+      items.push_back(HomeMenuItem::FILE_TRANSFER);
+    }
+    items.push_back(HomeMenuItem::SETTINGS_MENU);
+    return items;
+  }
+
+  // Convert HomeMenuItem to menu index (used in onEnter); a hidden item maps to the first row.
+  static int menuItemToIndex(HomeMenuItem item, bool hasOpdsUrl, bool compact) {
+    const auto items = menuOrder(hasOpdsUrl, compact);
+    const auto it = std::find(items.begin(), items.end(), item);
+    return it == items.end() ? 0 : static_cast<int>(it - items.begin());
   }
 
   // Convert menu index to HomeMenuItem (used in loop)
-  static HomeMenuItem indexToMenuItem(int idx, bool hasOpdsUrl) {
-    int i = 0;
-    if (idx == i++) return HomeMenuItem::FILE_BROWSER;
-    if (idx == i++) return HomeMenuItem::LIBRARY;
-    if (idx == i++) return HomeMenuItem::BINDERY;
-    if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
-    if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
-    if (idx == i) return HomeMenuItem::SETTINGS_MENU;
-    return HomeMenuItem::NONE;
+  static HomeMenuItem indexToMenuItem(int idx, bool hasOpdsUrl, bool compact) {
+    const auto items = menuOrder(hasOpdsUrl, compact);
+    return idx >= 0 && idx < static_cast<int>(items.size()) ? items[idx] : HomeMenuItem::NONE;
   }
+  static bool compactMenu();
   void onSelectBook(const std::string& path);
   void onFileBrowserOpen();
   void onLibraryOpen();

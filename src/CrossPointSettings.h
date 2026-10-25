@@ -181,8 +181,19 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     LONG_PRESS_BUTTON_BEHAVIOR_COUNT
   };
 
-  // UI Theme
-  enum UI_THEME { CLASSIC = 0, LYRA = 1, LYRA_3_COVERS = 2, ROUNDEDRAFF = 3, COVER_GRID = 4 };
+  // UI Theme. The stored value is the index into homeThemeValues(), whose
+  // PSRAM-only COVER_GRID entry is dropped on boards without PSRAM, so it
+  // stays last; the CrossBind pair sits before it (a cover grid saved as 4 by
+  // an older build reads back as CrossBind).
+  enum UI_THEME {
+    CLASSIC = 0,
+    LYRA = 1,
+    LYRA_3_COVERS = 2,
+    ROUNDEDRAFF = 3,
+    CROSSBIND = 4,
+    CROSSBIND_BLACK = 5,
+    COVER_GRID = 6
+  };
 
   // Image rendering in EPUB reader
   enum IMAGE_RENDERING { IMAGES_DISPLAY = 0, IMAGES_PLACEHOLDER = 1, IMAGES_SUPPRESS = 2, IMAGE_RENDERING_COUNT };
@@ -332,6 +343,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t readerMenuStyle = READER_MENU_LIST;
   // SD card font family name (empty = use built-in fontFamily)
   char sdFontFamilyName[32] = "";
+  // SD card family for UI text the built-in UI fonts cannot draw (CJK, ...),
+  // independent of the reading font. Empty = fall back to the reading font.
+  char uiFontFamilyName[32] = "";
   // Dictionary folder name under /dictionaries (empty = no dictionary)
   char dictionaryName[32] = "";
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)

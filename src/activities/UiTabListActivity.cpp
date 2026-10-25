@@ -137,7 +137,20 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
   fui::StyleSet tabStyles;
   tabStyles.explicitlySet = true;
   tabStyles.normal.foreground = fui::Paint::solid(fui::Color::Black);
-  if (tabsFocused) {
+  if (metrics.tabsUnderline) {
+    // Underline tabs (CrossBind): plain band; the active tab is an underlined
+    // label, filled like a selected list row while the bar has focus.
+    const bool blackFill = metrics.listSelectionStyle == static_cast<int>(fui::SelectionStyle::InvertFill);
+    if (tabsFocused) {
+      tabStyles.selected.background =
+          blackFill ? fui::Paint::solid(fui::Color::Black) : fui::Paint::dither(fui::Color::LightGray);
+      tabStyles.selected.foreground = fui::Paint::solid(blackFill ? fui::Color::White : fui::Color::Black);
+      tabStyles.selected.radius = screen.theme().listRowRadius;
+    } else {
+      tabStyles.selected.foreground = fui::Paint::solid(fui::Color::Black);
+      tabProps.selectedUnderline = 4;
+    }
+  } else if (tabsFocused) {
     tabStyles.selected.background = fui::Paint::solid(fui::Color::Black);
     tabStyles.selected.foreground = fui::Paint::solid(fui::Color::White);
     tabStyles.selected.radius = screen.theme().listRowRadius;
@@ -164,7 +177,7 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
   const fui::Rect tabRect{frameRect.x, contentTabRect.y, frameRect.width, contentTabRect.height};
   // Focused band wash is the Lyra treatment; legacy RoundedRaff keeps the
   // band plain in both states.
-  if (tabsFocused && !metrics.tabPillFullSlot) {
+  if (tabsFocused && !metrics.tabPillFullSlot && !metrics.tabsUnderline) {
     screen.target().fill(tabRect, fui::Paint::dither(fui::Color::LightGray));
   }
   // The band chrome (wash, divider) spans the full screen width, but the tab

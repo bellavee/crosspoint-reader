@@ -37,6 +37,18 @@ class SdCardFontSystem {
   /// Also re-discovers if the registry has been marked dirty (e.g. by web upload).
   void ensureLoaded(GfxRenderer& renderer);
 
+  /// Apply SETTINGS.uiFontFamilyName: load that family at the UI sizes and
+  /// route UI fallbacks to it, or (when unset) back to the reading font.
+  /// Call after the setting changes, under a RenderLock. ensureLoaded() and
+  /// begin() call it themselves. reload forces the family's files to be
+  /// re-read (the registry was rediscovered).
+  void ensureUiFont(GfxRenderer& renderer, bool reload = false);
+
+  /// Free every SD font (reading font, UI family, UI fallbacks) for a
+  /// heap-hungry task that ends in a restart. Settings are untouched, so the
+  /// next boot loads the same fonts again. Call under a RenderLock.
+  void unloadAll(GfxRenderer& renderer);
+
   /// Resolve an SD card font ID from family name + reader point size.
   /// Returns 0 if not found. Used by CrossPointSettings::getReaderFontId().
   int resolveFontId(const char* familyName, uint8_t pointSize) const;
@@ -69,6 +81,13 @@ class SdCardFontSystem {
   // reused).
   void setupUiFallbacks(GfxRenderer& renderer);
 
+  // The reader-font half of ensureLoaded().
+  void ensureReaderLoaded(GfxRenderer& renderer, bool registryWasDirty);
+
+  // The separately chosen UI family, or nullptr when UI text falls back to the
+  // reading font (setting unset, the same family, missing, or a vector family).
+  const SdCardFontFamilyInfo* uiFontFamily() const;
+
 #if CROSSPOINT_VECTOR_FONTS
   // --- Vector (.ttf/.otf) font path (FreeInkFont via TtfEpdFont) -------------
   // Load/refresh the selected TTF family at the current reader size, register
@@ -94,6 +113,10 @@ class SdCardFontSystem {
 
   SdCardFontRegistry registry_;
   SdCardFontManager manager_;
+  // The UI font family, at the UI sizes only, when it differs from the
+  // reading font. Its own manager, so changing either font leaves the other
+  // loaded.
+  SdCardFontManager uiManager_;
   std::atomic<bool> registryDirty_{false};
 
 #if CROSSPOINT_VECTOR_FONTS

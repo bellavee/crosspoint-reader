@@ -37,6 +37,11 @@ class UITheme {
   void reload();
   void setTheme(CrossPointSettings::UI_THEME type);
   static std::string getCoverThumbPath(std::string coverBmpPath, int coverHeight);
+  // Cover height of the library cover grid (2:3 covers, as wide as a tab slot
+  // allows), or 0 when the theme shows a list. Thumbs are drawn 1:1, so this is
+  // also the height library thumbs are generated at; it depends only on the
+  // portrait screen width, so home and library agree on it.
+  int libraryCoverHeight(const GfxRenderer& renderer) const;
   static UIIcon getFileIcon(const std::string& filename);
   static int getStatusBarHeight();
   static int getProgressBarHeight();

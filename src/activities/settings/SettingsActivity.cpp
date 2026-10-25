@@ -214,6 +214,12 @@ void SettingsActivity::activateIndex(const int index) {
 }
 
 void SettingsActivity::onExit() {
+  {
+    // The System Font setting swaps SD fonts the render task may be drawing
+    // with (see TextSettingsActivity::applyFamily); a no-op when unchanged.
+    RenderLock lock;
+    sdFontSystem.ensureUiFont(renderer);
+  }
   Activity::onExit();
 
   UITheme::getInstance().reload();  // Re-apply theme in case it was changed
@@ -549,7 +555,15 @@ void SettingsActivity::buildScreen(UiScreen& screen) {
   // vector growth) rather than building a new items/values vector on every
   // render.
   const auto& settings = *currentSettings;
+  const bool switches = metrics.listToggleSwitches;
   for (size_t i = 0; i < settings.size(); i++) {
+    // Themes with switches draw on/off rows as a switch in the value slot.
+    if (switches && settings[i].type == SettingType::TOGGLE && settings[i].valuePtr != nullptr) {
+      rowItems_[i].toggle = true;
+      rowItems_[i].toggleChecked = SETTINGS.*(settings[i].valuePtr);
+      rowItems_[i].value = nullptr;
+      continue;
+    }
     rowValues_[i] = settingValueText(settings[i]);
     rowItems_[i].value = rowValues_[i].empty() ? nullptr : rowValues_[i].c_str();
   }
@@ -580,7 +594,7 @@ void SettingsActivity::drawChrome() {
   // Version rides in the header's trailing label slot: the footer position
   // conflicts with button hints on non-touch devices.
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_SETTINGS_TITLE),
-                 CROSSPOINT_VERSION);
+                 "CrossBind \xC2\xB7 v" CROSSPOINT_VERSION);
 }
 
 void SettingsActivity::drawFooter() {

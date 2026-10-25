@@ -23,7 +23,8 @@
  * starve the next TLS handshake. So a run spans reboots: when the heap runs low
  * or a download fails, the run is saved to /.crosspoint/bindery-run.json and the
  * device silently restarts straight back into this activity (resuming = true)
- * with a clean heap. /.crosspoint/bindery.log records each step, since USB-locked
+ * with a clean heap. The SD fonts are unloaded for the run for the same reason
+ * (the exit restart reloads them). /.crosspoint/bindery.log records each step, since USB-locked
  * devices have no serial console.
  */
 class BinderySyncActivity final : public Activity {

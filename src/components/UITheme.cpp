@@ -14,6 +14,7 @@
 #include "RecentBooksStore.h"
 #include "components/CoverGridHomeUi.h"
 #include "components/themes/BaseTheme.h"
+#include "components/themes/crossbind/CrossBindTheme.h"
 #include "components/themes/lyra/Lyra3CoversTheme.h"
 #include "components/themes/lyra/LyraTheme.h"
 #include "components/themes/roundedraff/RoundedRaffTheme.h"
@@ -63,6 +64,19 @@ void UITheme::setTheme(CrossPointSettings::UI_THEME type) {
       currentTheme = std::make_unique<RoundedRaffTheme>();
       currentMetrics = &RoundedRaffMetrics::values;
       break;
+    case CrossPointSettings::UI_THEME::CROSSBIND:
+    case CrossPointSettings::UI_THEME::CROSSBIND_BLACK: {
+      const bool black = type == CrossPointSettings::UI_THEME::CROSSBIND_BLACK;
+      LOG_DBG("UI", "Using CrossBind theme (%s selection)", black ? "black" : "gray");
+      auto theme = makeUniqueNoThrow<CrossBindTheme>(black);
+      if (!theme) {
+        LOG_ERR("UI", "OOM: CrossBind theme");
+        return;
+      }
+      currentTheme = std::move(theme);
+      currentMetrics = black ? &CrossBindMetrics::black : &CrossBindMetrics::gray;
+      break;
+    }
     case CrossPointSettings::UI_THEME::LYRA_3_COVERS:
       LOG_DBG("UI", "Using Lyra 3 Covers theme");
       currentTheme = std::make_unique<Lyra3CoversTheme>();
@@ -119,6 +133,19 @@ Rect UITheme::getScreenSafeArea(const GfxRenderer& renderer, bool hasFrontButton
       break;
   }
   return safeArea;
+}
+
+int UITheme::libraryCoverHeight(const GfxRenderer& renderer) const {
+  const ThemeMetrics& metrics = getMetrics();
+  if (!metrics.libraryCoverGrid) return 0;
+  // The library's three tab slots (UiTabListActivity::buildTabBar geometry).
+  constexpr int COLUMNS = 3;
+  // Room around each cover for the selection frame plus a visible gap.
+  constexpr int SLOT_MARGIN = 10;
+  const int portraitWidth = std::min(renderer.getScreenWidth(), renderer.getScreenHeight());
+  const int slotWidth =
+      (portraitWidth - 2 * metrics.contentSidePadding - (COLUMNS - 1) * metrics.tabSpacing) / COLUMNS;
+  return (slotWidth - SLOT_MARGIN) * 3 / 2;
 }
 
 std::string UITheme::getCoverThumbPath(std::string coverBmpPath, int coverHeight) {

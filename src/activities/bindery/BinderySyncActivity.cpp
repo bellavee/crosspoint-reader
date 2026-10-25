@@ -17,6 +17,7 @@
 #include <cstring>
 
 #include "MappedInputManager.h"
+#include "SdCardFontSystem.h"
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/reader/ProgressFile.h"
@@ -24,6 +25,7 @@
 #include "fontIds.h"
 #include "network/HttpDownloader.h"
 #include "util/BookCacheUtils.h"
+#include "util/ReadingStatus.h"
 
 namespace {
 constexpr char BINDERY_DIR[] = "/Bindery";
@@ -448,8 +450,9 @@ BinderySyncActivity::Outcome BinderySyncActivity::downloadOne(const LibraryFile&
         }
       },
       &cancelRequested, KOREADER_STORE.getUsername(), KOREADER_STORE.getPassword());
-  log("%s: result %d, %u bytes, %lus (heap %u, block %u before)", file.path.c_str(), static_cast<int>(result),
-      static_cast<unsigned>(fileProgress), (millis() - startMs) / 1000, heap, block);
+  log("%s: result %d, %u/%u bytes, %lus (heap %u/%u, block %u/%u before/after)", file.path.c_str(),
+      static_cast<int>(result), static_cast<unsigned>(fileProgress), static_cast<unsigned>(fileTotal),
+      (millis() - startMs) / 1000, heap, ESP.getFreeHeap(), block, ESP.getMaxAllocHeap());
   if (result == HttpDownloader::ABORTED) return Outcome::CANCELLED;
   if (result != HttpDownloader::OK) return Outcome::FAILED;
 
@@ -478,6 +481,13 @@ BinderySyncActivity::Outcome BinderySyncActivity::downloadOne(const LibraryFile&
 void BinderySyncActivity::runSync() {
   {
     RenderLock lock(*this);
+    // Every way out from here restarts the device (onExit, restartToContinue)
+    // and the boot loads the SD fonts again. Until then they only hold heap
+    // the 16KB TLS records need: with a CJK UI font loaded, downloads died
+    // mid-stream. The sync screens draw with the built-in fonts.
+    const uint32_t heapBefore = ESP.getFreeHeap();
+    sdFontSystem.unloadAll(renderer);
+    log("sd fonts unloaded (heap %u -> %u, block %u)", heapBefore, ESP.getFreeHeap(), ESP.getMaxAllocHeap());
     state = State::FETCHING;
   }
   requestUpdateAndWait();
@@ -551,6 +561,7 @@ void BinderySyncActivity::runSync() {
   if (added + updated + removed > 0) library::markLibraryIndexDirty();
   log("done: +%d ~%d -%d !%d, %d restarts", added, updated, removed, failed, restarts);
   clearRun();
+  reading_status::recordLibrarySync(static_cast<int>(tracked.size()));
 
   if (goHomeRequested) {
     onGoHome();

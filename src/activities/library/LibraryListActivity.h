@@ -10,6 +10,7 @@
 #include "RecentBooksStore.h"
 #include "activities/UiTabListActivity.h"
 #include "components/OptionPopup.h"
+#include "components/media/cover-grid.h"
 
 // One Library screen: every indexed book on the card shown by recency, title,
 // or author. The Recent shelf orders by file modification time (when a book
@@ -106,6 +107,8 @@ class LibraryListActivity final : public UiTabListActivity {
   // fileName, when asked for, is the on-card name the row's icon derives from
   // (the display title may come from metadata and carry no extension).
   bool rowTextFor(int entry, std::string& title, std::string& author, std::string* fileName = nullptr);
+  // Full card path of the book at an entry (store row or index row).
+  bool bookPathFor(int entry, std::string& path);
   uint32_t titleInitialFor(int entry);
   bool buildGroupStarts();
   int groupForBook(int bookEntry) const;
@@ -115,6 +118,18 @@ class LibraryListActivity final : public UiTabListActivity {
   void buildHeader(UiScreen& screen);
   // Materializes ListItems and their strings for the visible window only.
   void buildRows(UiScreen& screen);
+  // Cover grid (themes with libraryCoverGrid): one page of cells through
+  // fui::coverGrid, each painted here. Collapsed groups stay a list.
+  bool gridMode() const;
+  void buildGrid(UiScreen& screen);
+  void paintGridCell(freeink::ui::Rect cover, int entry);
+  void paintTypeTile(freeink::ui::Rect tile, const std::string& title, const std::string& author) const;
+  // Grid buttons: side Up/Down move a row, front Left/Right move a cell (or
+  // switch tabs while the tab bar has focus).
+  void navigateGrid();
+  static freeink::ui::CoverGridItem gridItemTrampoline(uint16_t index, void* user);
+  static bool gridCoverTrampoline(freeink::ui::DrawTarget& target, freeink::ui::Rect rect,
+                                  const freeink::ui::CoverGridItem& item, uint16_t index, void* user);
   static void formatInitialHeading(uint32_t initial, std::string& out);
   void formatAuthorHeading(const std::string& author, std::string& out) const;
   void drawPositionReadout() const;
@@ -174,6 +189,16 @@ class LibraryListActivity final : public UiTabListActivity {
   std::vector<std::string> winTitles;
   std::vector<std::string> winAuthors;
   std::vector<std::string> winHeaders;
+  // Grid page state, set by buildGrid: the page's thumb paths (empty = no
+  // cached cover, draw a type tile), its first entry and the selected entry
+  // (-1 while the tabs have focus) for the painter, and the column count for
+  // row moves.
+  std::vector<std::string> winCovers;
+  int gridFirst = 0;
+  int gridSelected = -1;
+  int gridColumns = 3;
+  // Grid props stay off the render task's stack (as in CoverGridHomeUi).
+  freeink::ui::CoverGridProps gridProps;
 
   // Pinned overlay state: per store entry its RecentAsc row (0xFFFF when the
   // book is not in the index), and the current-direction rows to skip, sorted

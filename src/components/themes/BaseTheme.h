@@ -126,6 +126,17 @@ struct ThemeMetrics {
   int controlRadius;
   int sheetRadius;
   int capsuleRadius;
+
+  // Home menu without OPDS Browser and File Transfer (Bindery covers both).
+  bool homeCompactMenu = false;
+  // Settings rows for on/off values draw a switch instead of ON/OFF text.
+  bool listToggleSwitches = false;
+  // Tab bars mark the active tab with an underline and no band wash; with
+  // focus on the bar the active tab takes the list's selection fill.
+  bool tabsUnderline = false;
+  // Library shows books as a cover grid, one column under each tab, instead
+  // of a list. Cover size: UITheme::libraryCoverHeight().
+  bool libraryCoverGrid = false;
 };
 
 enum UIIcon {
@@ -270,9 +281,12 @@ class BaseTheme {
   virtual void drawRecentBookCover(GfxRenderer& renderer, Rect rect, const std::vector<RecentBook>& recentBooks,
                                    const int selectorIndex, bool& coverRendered, bool& coverBufferStored,
                                    bool& bufferRestored, std::function<bool()> storeCoverBuffer) const;
+  // rowValue (optional) is a short trailing label per row, e.g. a book count;
+  // themes without a value slot ignore it.
   virtual void drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                               const std::function<std::string(int index)>& buttonLabel,
-                              const std::function<UIIcon(int index)>& rowIcon) const;
+                              const std::function<UIIcon(int index)>& rowIcon,
+                              const std::function<std::string(int index)>& rowValue = nullptr) const;
   virtual Rect drawPopup(const GfxRenderer& renderer, const char* message) const;
   virtual void fillPopupProgress(const GfxRenderer& renderer, const Rect& layout, const int progress) const;
   static void drawStatusBar(GfxRenderer& renderer, const float bookProgress, const int currentPage, const int pageCount,
@@ -283,6 +297,15 @@ class BaseTheme {
   virtual void drawTextField(const GfxRenderer& renderer, Rect rect, const int textWidth, bool cursorMode = false,
                              int contentStartX = 0, int contentWidth = 0) const;
   virtual bool showsFileIcons() const { return false; }
+  // The home card shows chapter, progress and sync status: HomeActivity loads
+  // reading_status for the featured book on entry.
+  virtual bool usesReadingStatus() const { return false; }
+  // Draws a header's title row itself (below the status strip of `band`),
+  // for screens that build their header through FreeInkUI with no title.
+  // rightReserve keeps clear of trailing header buttons. False = the theme
+  // has no custom title row; the caller keeps the FreeInkUI title.
+  virtual bool drawHeaderTitleRow(const GfxRenderer&, Rect, const char*, const char*, int) const { return false; }
+  virtual bool hasHeaderTitleRow() const { return false; }
   // Thumb generation height for home covers; 0 means use metrics.homeCoverHeight.
   // Themes with slots wider than 0.6 aspect override this so covers still fill.
   virtual int homeCoverThumbHeight(const GfxRenderer&) const { return 0; }

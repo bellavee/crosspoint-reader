@@ -24,16 +24,13 @@
 #include "RecentBooksStore.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/BookCacheUtils.h"
+#include "util/ReadingStatus.h"
+
+bool HomeActivity::compactMenu() { return UITheme::getInstance().getMetrics().homeCompactMenu; }
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 5;  // File Browser, Library, Bindery, File transfer, Settings
-  if (!recentBooks.empty()) {
-    count += recentBooks.size();
-  }
-  if (hasOpdsServers) {
-    count++;
-  }
-  return count;
+  return static_cast<int>(recentBooks.size() + menuOrder(hasOpdsServers, compactMenu()).size());
 }
 
 void HomeActivity::loadRecentBooks(int maxBooks) {
@@ -221,6 +218,32 @@ void HomeActivity::loadRecentCovers(int coverHeight) {
     progress++;
   }
 
+  // The library grid never generates covers while browsing; it shows a cover
+  // only where a thumb at its exact size exists. Make that thumb here for the
+  // books on the home screen (already opened, so their metadata cache loads
+  // without a rebuild), once per book.
+  const int libraryCoverHeight = UITheme::getInstance().libraryCoverHeight(renderer);
+  if (libraryCoverHeight > 0 && !coverGridUi) {
+    for (const RecentBook& book : recentBooks) {
+      const std::string thumb = bookThumbPath(book.path, libraryCoverHeight);
+      if (thumb.empty() || Storage.exists(thumb.c_str())) continue;
+      if (!showingLoading) {
+        showingLoading = true;
+        popupRect = GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+      }
+      // Parser objects exceed the stack budget; one lives at a time.
+      if (FsHelpers::hasEpubExtension(book.path)) {
+        auto epub = makeUniqueNoThrow<Epub>(book.path, "/.crosspoint");
+        if (epub && epub->load(false, true)) epub->generateThumbBmp(libraryCoverHeight);
+      } else {
+        auto xtc = makeUniqueNoThrow<Xtc>(book.path, "/.crosspoint");
+        if (xtc && xtc->load()) xtc->generateThumbBmp(libraryCoverHeight);
+      }
+    }
+    // Repaint over the popup.
+    if (showingLoading) requestUpdate();
+  }
+
   recentsLoaded = true;
   recentsLoading = false;
 }
@@ -238,6 +261,7 @@ void HomeActivity::onEnter() {
   }
   loadRecentBooks(coverGridUi ? CoverGridHomeUi::MAX_BOOKS : metrics.homeRecentBooksCount);
   hasContinueReading = !recentBooks.empty();
+  if (GUI.usesReadingStatus()) reading_status::load(hasContinueReading ? recentBooks[0].path : std::string());
   if (coverGridUi) {
     fillCoverGridFromLibrary();
     resolveGridCoverPaths();
@@ -245,7 +269,7 @@ void HomeActivity::onEnter() {
   }
 
   const auto base = static_cast<int>(recentBooks.size());
-  selectorIndex = initialMenuItem == HomeMenuItem::NONE ? 0 : base + menuItemToIndex(initialMenuItem, hasOpdsServers);
+  selectorIndex = initialMenuItem == HomeMenuItem::NONE ? 0 : base + menuItemToIndex(initialMenuItem, hasOpdsServers, compactMenu());
 
   // Trigger first update
   requestUpdate();
@@ -306,7 +330,7 @@ void HomeActivity::loop() {
       return;
     }
     const int menuIndex = selectorIndex - static_cast<int>(recentBooks.size());
-    switch (indexToMenuItem(menuIndex, hasOpdsServers)) {
+    switch (indexToMenuItem(menuIndex, hasOpdsServers, compactMenu())) {
       case HomeMenuItem::FILE_BROWSER:
         onFileBrowserOpen();
         break;
@@ -510,19 +534,54 @@ void HomeActivity::render(RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_BINDERY), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Wifi, Transfer, Settings};
-
-  if (hasOpdsServers) {
-    menuItems.insert(menuItems.begin() + 3, tr(STR_OPDS_BROWSER));
-    menuIcons.insert(menuIcons.begin() + 3, Blocks);
+  std::vector<const char*> menuItems;
+  std::vector<UIIcon> menuIcons;
+  int binderyRow = -1;
+  for (const HomeMenuItem item : menuOrder(hasOpdsServers, compactMenu())) {
+    switch (item) {
+      case HomeMenuItem::FILE_BROWSER:
+        menuItems.push_back(tr(STR_BROWSE_FILES));
+        menuIcons.push_back(Folder);
+        break;
+      case HomeMenuItem::LIBRARY:
+        menuItems.push_back(tr(STR_LIBRARY));
+        menuIcons.push_back(Library);
+        break;
+      case HomeMenuItem::BINDERY:
+        binderyRow = static_cast<int>(menuItems.size());
+        menuItems.push_back(tr(STR_BINDERY));
+        menuIcons.push_back(Wifi);
+        break;
+      case HomeMenuItem::OPDS_BROWSER:
+        menuItems.push_back(tr(STR_OPDS_BROWSER));
+        menuIcons.push_back(Blocks);
+        break;
+      case HomeMenuItem::FILE_TRANSFER:
+        menuItems.push_back(tr(STR_FILE_TRANSFER));
+        menuIcons.push_back(Transfer);
+        break;
+      case HomeMenuItem::SETTINGS_MENU:
+        menuItems.push_back(tr(STR_SETTINGS_TITLE));
+        menuIcons.push_back(Settings);
+        break;
+      default:
+        break;
+    }
   }
 
   if (metrics.homeContinueReadingInMenu && !recentBooks.empty()) {
     // Insert Continue Reading at the top if enabled in theme
     menuItems.insert(menuItems.begin(), tr(STR_CONTINUE_READING));
     menuIcons.insert(menuIcons.begin(), Book);
+    if (binderyRow >= 0) binderyRow++;
+  }
+
+  // Book count beside Bindery, from the last finished library sync.
+  std::string binderyValue;
+  if (GUI.usesReadingStatus() && reading_status::current().libraryBooks >= 0) {
+    char text[24];
+    snprintf(text, sizeof(text), tr(STR_HOME_BOOKS_FORMAT), reading_status::current().libraryBooks);
+    binderyValue = text;
   }
 
   GUI.drawButtonMenu(
@@ -533,7 +592,8 @@ void HomeActivity::render(RenderLock&&) {
       static_cast<int>(menuItems.size()),
       metrics.homeContinueReadingInMenu ? selectorIndex : selectorIndex - recentBooks.size(),
       [&menuItems](int index) { return std::string(menuItems[index]); },
-      [&menuIcons](int index) { return menuIcons[index]; });
+      [&menuIcons](int index) { return menuIcons[index]; },
+      [&binderyValue, binderyRow](int index) { return index == binderyRow ? binderyValue : std::string(); });
 
   const auto labels = mappedInput.mapLabels(recentBooks.empty() ? "" : tr(STR_RESUME), tr(STR_SELECT), tr(STR_DIR_UP),
                                             tr(STR_DIR_DOWN));

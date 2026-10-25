@@ -23,6 +23,7 @@
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"  // list icons for the compare rows
 #include "fontIds.h"
+#include "util/ReadingStatus.h"
 
 namespace fui = freeink::ui;
 
@@ -91,6 +92,7 @@ void KOReaderSyncActivity::saveProgressAndReturn(int spineIndex, int page) {
     requestUpdate(true);
     return;
   }
+  reading_status::recordKosync(epubPath, reading_status::KosyncKind::Pulled, remoteProgress.device);
   returnToReader();
 }
 
@@ -103,6 +105,7 @@ bool KOReaderSyncActivity::smartSyncEnabled() const {
 void KOReaderSyncActivity::markAutoReturn() { autoReturnAt = millis() + AUTO_RETURN_DELAY_MS; }
 
 void KOReaderSyncActivity::completeAlreadySynced() {
+  reading_status::recordKosync(epubPath, reading_status::KosyncKind::Same, remoteProgress.device);
   {
     RenderLock lock(*this);
     state = SYNC_COMPLETE;
@@ -370,6 +373,7 @@ void KOReaderSyncActivity::performUpload() {
     return;
   }
 
+  reading_status::recordKosync(epubPath, reading_status::KosyncKind::Sent, "");
   {
     RenderLock lock(*this);
     state = UPLOAD_COMPLETE;

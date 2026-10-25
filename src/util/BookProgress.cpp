@@ -16,7 +16,7 @@ uint32_t readLe32(const uint8_t* p) {
 }
 }  // namespace
 
-int loadBookProgress(const std::string& path) {
+int loadBookProgress(const std::string& path, std::string* chapter) {
   uint8_t data[10]{};
   if (FsHelpers::hasEpubExtension(path)) {
     // Metadata objects exceed the stack budget; only the featured book is loaded, once per entry.
@@ -34,6 +34,10 @@ int loadBookProgress(const std::string& path) {
     const int page = data[2] | (data[3] << 8);
     const int total = size >= 6 ? data[4] | (data[5] << 8) : 0;
     if (epub->getSpineItemsCount() <= 0 || epub->getBookSize() == 0) return -1;
+    if (chapter && spine < epub->getSpineItemsCount()) {
+      const int tocIndex = epub->getTocIndexForSpineIndex(spine);
+      if (tocIndex >= 0) *chapter = epub->getTocItem(tocIndex).title;
+    }
     if (spine == epub->getSpineItemsCount()) return 100;
     if (spine > epub->getSpineItemsCount()) return -1;
     const float fraction = total > 0 && page != UINT16_MAX ? std::clamp(float(page) / total, 0.0f, 1.0f) : 0;

@@ -85,6 +85,10 @@ python fontconvert.py notosans_8_regular 8 \
   ../builtinFonts/source/NotoSansArabic/NotoSansArabic-Regular.ttf \
   --additional-intervals 0x05D0,0x05EA "${ARABIC_INTERVALS[@]}" > ../builtinFonts/notosans_8_regular.h
 
+# Small italic serif for secondary lines in UI themes (CrossBind's chapter
+# line under the book title); italic only, so it is a one-face family.
+python fontconvert.py notoserif_10_italic 10 ../builtinFonts/source/NotoSerif/NotoSerif-Italic.ttf   --2bit --compress --pnum --zopfli > ../builtinFonts/notoserif_10_italic.h
+
 echo ""
 echo "Running compression verification..."
 python verify_compression.py ../builtinFonts/
