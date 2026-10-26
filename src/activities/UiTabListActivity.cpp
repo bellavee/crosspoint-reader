@@ -151,20 +151,13 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
     tabProps.contentInset.right = tabPillMaxPad;
   }
 
-  // Left-aligned tabs start under the header title. A focused pill gets side
-  // padding and the gap shrinks by the same amount, so labels stay put when
-  // focus enters the bar.
-  int16_t slotsShift = 0;
+  // Left-aligned tabs (Quire) start under the header title and mark the
+  // active tab with an underline only, focused or not, over no rule.
   if (metrics.tabsLeftAligned) {
-    constexpr int16_t FOCUSED_PILL_PAD = 8;
-    const int16_t pad = tabsFocused ? FOCUSED_PILL_PAD : 0;
     tabProps.layout = fui::TabBarLayout::ContentWidth;
-    tabProps.tabInset.left = 0;
-    tabProps.tabInset.right = 0;
-    tabProps.contentInset.left = pad;
-    tabProps.contentInset.right = pad;
-    tabProps.gap = static_cast<int16_t>(std::max(0, metrics.tabSpacing - 2 * pad));
-    slotsShift = pad;
+    tabProps.tabInset = fui::Insets{2, 0, 0, 0};
+    tabProps.contentInset = fui::Insets{2, 0, 2, 0};
+    tabProps.gap = static_cast<int16_t>(metrics.tabSpacing);
   }
 
   // Legacy Lyra two-state treatment: with the selection on the tab band, the
@@ -179,7 +172,7 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
     // Underline tabs (CrossBind): plain band; the active tab is an underlined
     // label, filled like a selected list row while the bar has focus.
     const bool blackFill = metrics.listSelectionStyle == static_cast<int>(fui::SelectionStyle::InvertFill);
-    if (tabsFocused) {
+    if (tabsFocused && !metrics.tabsLeftAligned) {
       tabStyles.selected.background =
           blackFill ? fui::Paint::solid(fui::Color::Black) : fui::Paint::dither(fui::Color::LightGray);
       tabStyles.selected.foreground = fui::Paint::solid(blackFill ? fui::Color::White : fui::Color::Black);
@@ -222,14 +215,16 @@ void UiTabListActivity::buildTabBar(UiScreen& screen) {
   }
   // Leave space on both sides of the tab labels and selection highlights.
   // Draw the line below the tabs across the full background width.
-  const auto divider = static_cast<int16_t>(std::max(1, metrics.headerUnderlineSize));
+  const auto divider = static_cast<int16_t>(metrics.tabsLeftAligned ? 0 : std::max(1, metrics.headerUnderlineSize));
   const auto side = static_cast<int16_t>(metrics.contentSidePadding);
-  const fui::Rect slotsRect{static_cast<int16_t>(contentTabRect.x + side - slotsShift), tabRect.y,
-                            static_cast<int16_t>(contentTabRect.width - 2 * side + slotsShift),
+  const fui::Rect slotsRect{static_cast<int16_t>(contentTabRect.x + side), tabRect.y,
+                            static_cast<int16_t>(contentTabRect.width - 2 * side),
                             static_cast<int16_t>(tabRect.height - divider)};
   tabProps.divider = false;
   fui::tabBar(screen.frame(), slotsRect, tabProps);
-  screen.target().fill(fui::Rect{tabRect.x, static_cast<int16_t>(tabRect.bottom() - divider), tabRect.width, divider},
-                       fui::Paint::solid(fui::Color::Black));
+  if (divider > 0) {
+    screen.target().fill(fui::Rect{tabRect.x, static_cast<int16_t>(tabRect.bottom() - divider), tabRect.width, divider},
+                         fui::Paint::solid(fui::Color::Black));
+  }
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
 }

@@ -139,7 +139,8 @@ struct ThemeMetrics {
   // focus on the bar the active tab takes the list's selection fill.
   bool tabsUnderline = false;
   // Tabs hug their labels and line up from the left edge instead of sharing
-  // the bar in equal slots.
+  // the bar in equal slots; the active tab is underlined, with no rule under
+  // the bar.
   bool tabsLeftAligned = false;
   // Library shows books as a cover grid, one column under each tab, instead
   // of a list. Cover size: UITheme::libraryCoverHeight().
