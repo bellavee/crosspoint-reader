@@ -13,7 +13,7 @@
 #include "FsHelpers.h"
 
 namespace {
-constexpr uint8_t BOOK_CACHE_VERSION = 10;  // v10: ignore ambiguous guide text references
+constexpr uint8_t BOOK_CACHE_VERSION = 11;  // v11: collapse whitespace in TOC titles
 constexpr char bookBinFile[] = "/book.bin";
 constexpr char tmpSpineBinFile[] = "/spine.bin.tmp";
 constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
@@ -22,6 +22,25 @@ constexpr char tmpTocBinFile[] = "/toc.bin.tmp";
 constexpr size_t BUILD_IO_BUFFER_SIZE = 4096;
 // The render task and the main loop both ask for sizes.
 std::mutex sizeWindowLock;
+
+// TOC titles are XML text, and pretty-printed NCX/nav files wrap them in line
+// breaks and indentation the UI fonts have no glyphs for. Collapse each ASCII
+// whitespace run to one space and trim the ends, as HTML rendering would.
+std::string collapseWhitespace(const std::string& text) {
+  std::string out;
+  out.reserve(text.size());
+  bool pendingSpace = false;
+  for (const char c : text) {
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v') {
+      pendingSpace = !out.empty();
+      continue;
+    }
+    if (pendingSpace) out.push_back(' ');
+    pendingSpace = false;
+    out.push_back(c);
+  }
+  return out;
+}
 
 // Entry (de)serializers, templated so they run over HalFile and the Buffered*
 // wrappers alike (two instantiations each -- a few hundred bytes of flash, in
@@ -448,7 +467,7 @@ void BookMetadataCache::createTocEntry(const std::string& title, const std::stri
 
   // Compose the title to NFC at index time so the cache stores precomposed glyphs;
   // device fonts have no combining-mark positioning, so NFD titles render broken.
-  const TocEntry entry(utf8ComposeNfc(title), href, anchor, level, spineIndex);
+  const TocEntry entry(utf8ComposeNfc(collapseWhitespace(title)), href, anchor, level, spineIndex);
   if (passOut) {
     writeTocEntryTo(*passOut, entry);
   } else {
