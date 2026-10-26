@@ -278,6 +278,9 @@ class BaseTheme {
   // Draws a pre-dithered cover thumb 1:1, centered and clipped to fill the
   // slot. Rescaling a dithered bitmap aliases badly, so overflow is cropped.
   static bool drawCoverThumbFill(const GfxRenderer& renderer, const Bitmap& bitmap, Rect slot, int xOffset = 0);
+  // Whites out the pixels outside a radius-r arc at each corner, so a cover
+  // drawn square reads as a rounded card. r = 0 leaves the corners square.
+  static void roundCoverCorners(const GfxRenderer& renderer, Rect rect, int r);
   virtual void drawProgressBar(const GfxRenderer& renderer, Rect rect, size_t current, size_t total) const;
   void drawBatteryLeft(const GfxRenderer& renderer, Rect rect,
                        bool showPercentage = true) const;  // Left aligned (reader mode)

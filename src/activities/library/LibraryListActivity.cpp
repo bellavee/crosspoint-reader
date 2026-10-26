@@ -1267,7 +1267,9 @@ void LibraryListActivity::paintGridCell(const fui::Rect cover, const int entry) 
     }
   }
   if (drawn) {
-    renderer.drawRect(cover.x, cover.y, cover.width, cover.height, true);
+    // Same rounded frame as the type tiles.
+    BaseTheme::roundCoverCorners(renderer, Rect{cover.x, cover.y, cover.width, cover.height}, radius);
+    renderer.drawRoundedRect(cover.x, cover.y, cover.width, cover.height, 1, radius, true);
   } else {
     renderer.drawRoundedRect(cover.x, cover.y, cover.width, cover.height, 1, radius, true);
     paintTypeTile(cover, title, author);

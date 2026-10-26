@@ -71,23 +71,8 @@ std::string relativeWhen(const int64_t utc) {
   return reading_status::formatWhen(utc);
 }
 
-// White out the pixels outside a radius-r arc at each corner, so a cover
-// bitmap drawn square reads as a rounded card.
-void roundCorners(const GfxRenderer& renderer, const Rect rect, const int r) {
-  for (int dy = 0; dy < r; ++dy) {
-    for (int dx = 0; dx < r; ++dx) {
-      const float cx = r - dx - 0.5f;
-      const float cy = r - dy - 0.5f;
-      if (cx * cx + cy * cy <= static_cast<float>(r * r)) continue;
-      renderer.drawPixel(rect.x + dx, rect.y + dy, false);
-      renderer.drawPixel(rect.x + rect.width - 1 - dx, rect.y + dy, false);
-      renderer.drawPixel(rect.x + dx, rect.y + rect.height - 1 - dy, false);
-      renderer.drawPixel(rect.x + rect.width - 1 - dx, rect.y + rect.height - 1 - dy, false);
-    }
-  }
-}
-
-// Draws the book's cover thumb into `slot`, a placeholder when there is none.
+// Draws the book's cover thumb into `slot`, a placeholder when there is none,
+// as a rounded card with a black border.
 void drawCover(const GfxRenderer& renderer, const std::string& thumbPath, const Rect slot) {
   bool drawn = false;
   if (!thumbPath.empty()) {
@@ -99,7 +84,9 @@ void drawCover(const GfxRenderer& renderer, const std::string& thumbPath, const 
     }
   }
   if (!drawn) BaseTheme::drawCoverPlaceholder(renderer, slot);
-  roundCorners(renderer, slot, radius);
+  BaseTheme::roundCoverCorners(renderer, slot, radius);
+  // A white cover would otherwise melt into the page.
+  renderer.drawRoundedRect(slot.x, slot.y, slot.width, slot.height, 2, radius, true);
 }
 
 // Rounded outline with a solid fill for `percent`, the mock's reading bar.
@@ -285,7 +272,6 @@ void QuireTheme::drawRecentBookCover(GfxRenderer& renderer, const Rect rect, con
     // Snapshot lost: draw the placeholder so the page never shows a hole.
     drawCover(renderer, std::string(), cover);
   }
-  renderer.drawRoundedRect(cover.x, cover.y, cover.width, cover.height, 2, radius, true);
 
   const int columnX = cover.x + cover.width + columnGap;
   drawStats(renderer, columnX, cover.y, rect.x + rect.width - side - columnX, cover.height);

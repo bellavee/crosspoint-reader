@@ -161,6 +161,20 @@ bool BaseTheme::drawCoverThumbFill(const GfxRenderer& renderer, const Bitmap& bi
   return drawn;
 }
 
+void BaseTheme::roundCoverCorners(const GfxRenderer& renderer, const Rect rect, const int r) {
+  for (int dy = 0; dy < r; ++dy) {
+    for (int dx = 0; dx < r; ++dx) {
+      const float cx = r - dx - 0.5f;
+      const float cy = r - dy - 0.5f;
+      if (cx * cx + cy * cy <= static_cast<float>(r * r)) continue;
+      renderer.drawPixel(rect.x + dx, rect.y + dy, false);
+      renderer.drawPixel(rect.x + rect.width - 1 - dx, rect.y + dy, false);
+      renderer.drawPixel(rect.x + dx, rect.y + rect.height - 1 - dy, false);
+      renderer.drawPixel(rect.x + rect.width - 1 - dx, rect.y + rect.height - 1 - dy, false);
+    }
+  }
+}
+
 void BaseTheme::drawProgressBar(const GfxRenderer& renderer, Rect rect, const size_t current,
                                 const size_t total) const {
   if (total == 0) {
