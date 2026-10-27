@@ -238,7 +238,7 @@ void QuireTheme::drawHints(GfxRenderer& renderer, const char* const labels[4], c
 // --- Home ---
 
 Rect QuireTheme::coverRect(const GfxRenderer&, const Rect tile) {
-  // 58% of the inner width at 5:8: 280x448 on the X3's 528px panel.
+  // 58% of the inner width at 5:7: 280x392 on the X3's 528px panel.
   const int width = (tile.width - 2 * side) * 58 / 100;
   return Rect{tile.x + side, tile.y, width, width * UITheme::COVER_ASPECT_HEIGHT / UITheme::COVER_ASPECT_WIDTH};
 }

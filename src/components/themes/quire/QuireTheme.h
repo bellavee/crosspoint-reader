@@ -36,7 +36,7 @@ constexpr ThemeMetrics values = [] {
   // The status digits' ink spans y 12..26 (SMALL font centered on the 5..33
   // strip); the cover starts the same 12px below it.
   v.homeTopPadding = 38;
-  v.homeCoverHeight = 448;
+  v.homeCoverHeight = 392;
   // The whole home body; only the cover inside it is snapshotted.
   v.homeCoverTileHeight = 680;
   v.homeRecentBooksCount = 1;
@@ -96,7 +96,7 @@ class QuireTheme : public BaseTheme {
   bool usesReadingStatus() const override { return true; }
 
  private:
-  // The home cover's slot inside the home tile (left column, 5:8).
+  // The home cover's slot inside the home tile (left column, 5:7).
   static Rect coverRect(const GfxRenderer& renderer, Rect tile);
   void drawHints(GfxRenderer& renderer, const char* const labels[4], int primary, bool always) const;
   void drawStats(const GfxRenderer& renderer, int x, int y, int width, int height) const;
