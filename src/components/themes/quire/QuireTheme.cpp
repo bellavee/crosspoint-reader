@@ -238,9 +238,9 @@ void QuireTheme::drawHints(GfxRenderer& renderer, const char* const labels[4], c
 // --- Home ---
 
 Rect QuireTheme::coverRect(const GfxRenderer&, const Rect tile) {
-  // 58% of the inner width at 2:3: 280x420 on the X3's 528px panel.
+  // 58% of the inner width at 5:8: 280x448 on the X3's 528px panel.
   const int width = (tile.width - 2 * side) * 58 / 100;
-  return Rect{tile.x + side, tile.y, width, width * 3 / 2};
+  return Rect{tile.x + side, tile.y, width, width * UITheme::COVER_ASPECT_HEIGHT / UITheme::COVER_ASPECT_WIDTH};
 }
 
 int QuireTheme::homeCoverThumbHeight(const GfxRenderer& renderer) const {
@@ -445,8 +445,8 @@ bool QuireTheme::drawBookOpening(const GfxRenderer& renderer, const BookOpening&
   const int screenWidth = renderer.getScreenWidth();
   int coverHeight = UITheme::getInstance().libraryCoverHeight(renderer);
   if (coverHeight <= 0) coverHeight = 240;
-  const Rect cover{(screenWidth - coverHeight * 2 / 3) / 2, renderer.getScreenHeight() * 19 / 100, coverHeight * 2 / 3,
-                   coverHeight};
+  const int coverWidth = coverHeight * UITheme::COVER_ASPECT_WIDTH / UITheme::COVER_ASPECT_HEIGHT;
+  const Rect cover{(screenWidth - coverWidth) / 2, renderer.getScreenHeight() * 19 / 100, coverWidth, coverHeight};
   drawCover(renderer, book.coverPath, cover);
 
   int y = cover.y + cover.height + 30;

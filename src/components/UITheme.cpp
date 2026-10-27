@@ -163,7 +163,7 @@ int UITheme::libraryCoverHeight(const GfxRenderer& renderer) const {
   constexpr int SLOT_MARGIN = 10;
   const int portraitWidth = std::min(renderer.getScreenWidth(), renderer.getScreenHeight());
   const int slotWidth = (portraitWidth - 2 * metrics.contentSidePadding - (COLUMNS - 1) * metrics.tabSpacing) / COLUMNS;
-  return (slotWidth - SLOT_MARGIN) * 3 / 2;
+  return (slotWidth - SLOT_MARGIN) * COVER_ASPECT_HEIGHT / COVER_ASPECT_WIDTH;
 }
 
 Rect UITheme::getHeaderRect(const GfxRenderer& renderer, bool hasFrontButtonHints, bool hasSideButtonHints) {

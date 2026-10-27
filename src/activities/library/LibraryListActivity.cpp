@@ -1122,9 +1122,9 @@ void LibraryListActivity::buildGrid(UiScreen& screen) {
   constexpr int FRAME_ROOM = 4;
 
   const int coverH = UITheme::getInstance().libraryCoverHeight(renderer);
-  // 2:3 slot. Thumbs are scaled to cover their 0.6 box, so a 2:3 cover comes
+  // 5:8 slot. Thumbs are scaled to cover their 0.6 box, so a 5:8 cover comes
   // out exactly this wide; wider art is cropped, narrower art is centered.
-  const int coverW = coverH * 2 / 3;
+  const int coverW = coverH * UITheme::COVER_ASPECT_WIDTH / UITheme::COVER_ASPECT_HEIGHT;
   // Title and author, or (libraryGridProgress) a small title over the progress bar.
   const int rowHeight = metrics.libraryGridProgress ? coverH + LABEL_GAP + 2 * renderer.getLineHeight(SMALL_FONT_ID)
                                                     : coverH + LABEL_GAP + renderer.getLineHeight(UI_10_FONT_ID) +
